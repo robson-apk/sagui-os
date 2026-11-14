@@ -337,6 +337,7 @@ static const fixo_t menu_itens[] = {
     { "Cipó", "/bin/navegador", "", 0 }, { "Editor", "/bin/editor", "", 0 },
     { "Calculadora", "/bin/calculadora", "", 0 }, { "Banana", "/bin/banana", "", 0 },
     { "Sagui 3D", "/bin/sagui3d", "", 0 }, { "Configurações", "/bin/configuracoes", "", 0 },
+    { "Sagui Monitor", "/bin/sagui-monitor", "", 0 },
     { "Sobre o SaguiOS", "/bin/sobre-o-sistema", "", 0 }, { "Desligar...", "/bin/energia", "", 0 },
 };
 #define QTD_MENU (int)(sizeof menu_itens / sizeof menu_itens[0])

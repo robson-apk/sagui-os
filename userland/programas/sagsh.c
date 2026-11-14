@@ -82,6 +82,7 @@ static const comando_t comandos[] = {
     { "sagui3d", NULL, false, true, "jogo em 3D", "sagui3d [fase]", "Abre o jogo Sagui 3D (ou só uma fase, dando o arquivo)." },
     { "triangulos", NULL, false, true, "teste de desenho", "triangulos", "Triângulos girando em 3D, com os quadros por segundo: mede a velocidade do desenho. +/- muda a quantidade." },
     { "chuva", NULL, false, true, "chuva de letras", "chuva", "Abre uma janela com letras verdes caindo. Espaço pausa; Esc fecha." },
+    { "sagui-monitor", NULL, false, true, "monitor em janela", "sagui-monitor", "Abre o Sagui Monitor numa janela: CPU, memória e processos. P, M e N ordenam; setas escolhem; Q ou Esc fecha." },
 };
 #define QTD_COMANDOS (int)(sizeof comandos / sizeof comandos[0])
 

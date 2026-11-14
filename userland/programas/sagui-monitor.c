@@ -1,18 +1,14 @@
-/* monitor - Sagui Monitor, inspirado no btop (pull request #7, de Gabriel).
+/* sagui-monitor - Sagui Monitor, janela no estilo do btop (pull request #7,
+ * de Gabriel). O "monitor" do Terminal é o top; esta é a versão em janela.
  *
- * Janela gráfica em ring 3 que mostra:
- *   - uso de CPU (média entre duas amostras)
- *   - uso de memória (total, livre, usada)
- *   - lista de processos com PID, CPU%, MEM%, estado e nome
- *   - histórico curto de CPU como barrinhas laterais
+ * Mostra o uso de CPU (tudo menos o processo ocioso), a memória, um histórico
+ * curto da CPU e a lista de processos com PID, %CPU, memória, estado e nome.
  *
- * Teclas:
- *   P - ordenar por CPU   M - ordenar por memória   N - ordenar por nome
- *   Q ou ESC - sair
+ * Teclas: P ordena por CPU, M por memória, N por nome; setas escolhem um
+ * processo (a escolha segue o processo, não a linha); Q ou Esc fecham.
  *
- * Tudo desenhado pelo próprio programa na área de pixels da janela,
- * usando apenas as chamadas de sistema do SaguiOS (int 0x80) e a libsagui.
- * Sem libc, sem código de outros sistemas. */
+ * Tudo desenhado pelo próprio programa, só com as chamadas do SaguiOS e a
+ * libsagui. */
 
 #include "sagui.h"
 #include "gui.h"
@@ -239,11 +235,7 @@ static void desenhar_lista(jan_t *j, int y, const processo_snapshot_t *s,
     if (sel < topo) topo = sel;
     if (topo < 0) topo = 0;
 
-    const char *ordem_txt = modo_ordem == 0 ? "CPU" :
-                            modo_ordem == 1 ? "MEM" : "NOME";
-    char rot[96];
-    formatar_texto(rot, sizeof rot, "ordenar: [P]CPU [M]MEM [N]NOME  (atual: %s)", ordem_txt);
-    desenhar_texto(j, LARG_JAN - 16 - g_largura_texto(rot), y + 200, rot, TOPO_TEXTO_FR);
+    (void)modo_ordem;
 
     for (int k = 0; k < vis && topo + k < s->qtd; k++) {
         const proc_t *p = &s->lista[topo + k];
@@ -288,88 +280,108 @@ static void texto_para_int_n(int v, char *buf, unsigned max)
 
 /* ------------------------------------------------------------ loop principal */
 
+#define AMOSTRA_MS 1000   /* uma amostra nova por segundo */
+#define PASSO_MS   50     /* de quanto em quanto tempo olhar o teclado */
+
+static const char *const nomes_ordem[] = { "CPU", "MEM", "NOME" };
+
+static void desenhar_tudo(jan_t *j, const info_versao_t *iv, unsigned total_cpu, unsigned pct_mem,
+                          const processo_snapshot_t *exib, int sel, int modo_ordem)
+{
+    g_retangulo(j, 0, 32, LARG_JAN, ALT_JAN - 32, TOPO_FUNDO);
+    desenhar_cabecalho(j, iv->versao, iv->segundos_ligado);
+    desenhar_linha_cpu_mem(j, 70, total_cpu, pct_mem);
+    desenhar_lista(j, 140, exib, sel, modo_ordem);
+    desenhar_texto(j, 16, ALT_JAN - 24, "Q/ESC: sair   setas: escolher", TOPO_TEXTO_FR);
+    char rot[64];
+    formatar_texto(rot, sizeof rot, "ordem [P]CPU [M]MEM [N]NOME: %s", nomes_ordem[modo_ordem]);
+    desenhar_texto(j, LARG_JAN - 16 - g_largura_texto(rot), ALT_JAN - 24, rot, TOPO_TEXTO_FR);
+    jan_mostrar(j);
+}
+
+static int indice_do_pid(const processo_snapshot_t *s, int pid)
+{
+    for (int i = 0; i < s->qtd; i++) if (s->lista[i].pid == pid) return i;
+    return -1;
+}
+
 int principal(int argc, char **argv)
 {
     (void)argc; (void)argv;
 
     jan_t *j = jan_abrir("Sagui Monitor", LARG_JAN, ALT_JAN);
     if (!j) return 1;
-
     g_retangulo(j, 0, 32, LARG_JAN, ALT_JAN - 32, TOPO_FUNDO);
     jan_mostrar(j);
 
+    /* cru[0]: amostra anterior, com os ms de CPU acumulados de cada processo.
+     * A conta do percentual é feita numa cópia, para a próxima amostra
+     * comparar ms com ms. */
+    static processo_snapshot_t cru, agora, exib;
+    capturar_processos(&cru);
+    dormir(300);
+
     info_versao_t iv;
-    info_sistema(INFO_VERSAO, &iv, sizeof iv);
-
-    processo_snapshot_t amostra[2];
-
-    /* Primeira amostra. */
-    capturar_processos(&amostra[0]);
-    unsigned t0 = tempo_ms();
-    dormir(500);
-
-    int modo_ordem = 0;   /* 0 = CPU, 1 = MEM, 2 = NOME */
-    int sel = 0;
-    bool rodando = true;
+    int modo_ordem = 0, sel = 0, pid_sel = -1;
+    unsigned total_cpu = 0, pct_mem = 0;
+    bool rodando = true, primeira = true;
+    unsigned prox_amostra = 0;
 
     while (rodando) {
-        /* Segunda amostra. */
-        amostra[1] = amostra[0];   /* estrutura cópia; preenche qtd e lista abaixo */
-        capturar_processos(&amostra[1]);
-        unsigned t1 = tempo_ms();
-        unsigned delta_ms = t1 - t0;
-        if (delta_ms < 100) delta_ms = 100;
-
-        /* Calcula percentuais diretamente em amostra[1].lista[].cpu_val. */
-        unsigned total_cpu = calcular_cpu(&amostra[0], &amostra[1], delta_ms);
-        if (total_cpu > 1000) total_cpu = 1000;
-
-        /* Desloca histórico. */
-        for (int i = HIST_MAX - 1; i > 0; i--) hist_cpu[i] = hist_cpu[i - 1];
-        hist_cpu[0] = total_cpu;
-        if (hist_qtd < HIST_MAX) hist_qtd++;
-
-        /* Memória. */
-        memoria_t mem;
-        capturar_memoria(&mem);
-        unsigned pct_mem = mem.gerida_kb ? (mem.usada_kb * 1000) / mem.gerida_kb : 0;
-
-        /* Redesenha. */
-        g_retangulo(j, 0, 32, LARG_JAN, ALT_JAN - 32, TOPO_FUNDO);
-        info_sistema(INFO_VERSAO, &iv, sizeof iv);   /* tempo ligado a cada volta */
-        desenhar_cabecalho(j, iv.versao, iv.segundos_ligado);
-        desenhar_linha_cpu_mem(j, 70, total_cpu, pct_mem);
-
-        /* Ordena a cópia para exibição (percentual viaja com o processo). */
-        processo_snapshot_t exib = amostra[1];
-        ordenar_por(&exib, modo_ordem);
-        desenhar_lista(j, 140, &exib, sel, modo_ordem);
-
-        /* Rodapé com ajuda. */
-        const char *ajuda = "Q/ESC: sair   setas: mover seleção";
-        desenhar_texto(j, 16, ALT_JAN - 24, ajuda, TOPO_TEXTO_FR);
-        jan_mostrar(j);
-
-        /* Troca amostras. */
-        amostra[0] = amostra[1];
-        t0 = t1;
-
-        evento_t e;
-        int r = proximo_evento(j->id, &e, false);
-        if (r == 1) {
-            if (e.tipo == EV_FECHAR) rodando = false;
-            else if (e.tipo == EV_TECLA) {
-                unsigned t = e.tecla;
-                if (t == TECLA_ESC || t == 'q' || t == 'Q') rodando = false;
-                else if (t == 'p' || t == 'P') { modo_ordem = 0; sel = 0; }
-                else if (t == 'm' || t == 'M') { modo_ordem = 1; sel = 0; }
-                else if (t == 'n' || t == 'N') { modo_ordem = 2; sel = 0; }
-                else if (t == TECLA_CIMA) { if (sel > 0) sel--; }
-                else if (t == TECLA_BAIXO) { if (sel < amostra[1].qtd - 1) sel++; }
-            }
+        unsigned t = tempo_ms();
+        bool redesenhar = false;
+        if (primeira || (int)(t - prox_amostra) >= 0) {
+            capturar_processos(&agora);
+            processo_snapshot_t pct = agora;
+            total_cpu = calcular_cpu(&cru, &pct, AMOSTRA_MS);
+            if (total_cpu > 1000) total_cpu = 1000;
+            cru = agora;
+            for (int i = HIST_MAX - 1; i > 0; i--) hist_cpu[i] = hist_cpu[i - 1];
+            hist_cpu[0] = total_cpu;
+            if (hist_qtd < HIST_MAX) hist_qtd++;
+            memoria_t mem;
+            capturar_memoria(&mem);
+            pct_mem = mem.gerida_kb ? (mem.usada_kb * 1000) / mem.gerida_kb : 0;
+            info_sistema(INFO_VERSAO, &iv, sizeof iv);
+            exib = pct;
+            if (primeira)
+                registrar("sagui-monitor: %d processos, CPU %u.%u%%, memória %u.%u%%",
+                          exib.qtd, total_cpu / 10, total_cpu % 10, pct_mem / 10, pct_mem % 10);
+            primeira = false;
+            prox_amostra = t + AMOSTRA_MS;
+            redesenhar = true;
         }
 
-        dormir(400);
+        /* todas as teclas que chegaram, não só uma por volta */
+        evento_t e;
+        bool mudou_ordem = false, mudou_sel = false;
+        while (proximo_evento(j->id, &e, false) == 1) {
+            if (e.tipo == EV_FECHAR) rodando = false;
+            else if (e.tipo == EV_TECLA) {
+                unsigned k = e.tecla;
+                if (k == TECLA_ESC || k == 'q' || k == 'Q') rodando = false;
+                else if (k == 'p' || k == 'P') { modo_ordem = 0; mudou_ordem = true; }
+                else if (k == 'm' || k == 'M') { modo_ordem = 1; mudou_ordem = true; }
+                else if (k == 'n' || k == 'N') { modo_ordem = 2; mudou_ordem = true; }
+                else if (k == TECLA_CIMA) { if (sel > 0) sel--; mudou_sel = true; pid_sel = -1; }
+                else if (k == TECLA_BAIXO) { if (sel < exib.qtd - 1) sel++; mudou_sel = true; pid_sel = -1; }
+            }
+        }
+        if (!rodando) break;
+
+        if (redesenhar || mudou_ordem || mudou_sel) {
+            ordenar_por(&exib, modo_ordem);
+            /* a escolha segue o processo depois de reordenar ou de nova amostra */
+            if (pid_sel >= 0) { int i = indice_do_pid(&exib, pid_sel); if (i >= 0) sel = i; }
+            if (sel >= exib.qtd) sel = exib.qtd ? exib.qtd - 1 : 0;
+            if (exib.qtd) pid_sel = exib.lista[sel].pid;
+            desenhar_tudo(j, &iv, total_cpu, pct_mem, &exib, sel, modo_ordem);
+            if (mudou_ordem && exib.qtd)
+                registrar("sagui-monitor: ordem %s, primeiro %s", nomes_ordem[modo_ordem], exib.lista[0].nome);
+            if (mudou_sel && exib.qtd)
+                registrar("sagui-monitor: escolhido PID %d (%s)", exib.lista[sel].pid, exib.lista[sel].nome);
+        }
+        dormir(PASSO_MS);
     }
 
     jan_fechar(j);
