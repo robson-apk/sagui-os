@@ -1,0 +1,242 @@
+# Integração e entrega contínuas do SaguiOS.
+#
+# Roda no Ubuntu 24.04 hospedado pelo GitHub: compila a imagem com o Makefile
+# do projeto, executa a suíte inteira no QEMU e, só na main, publica a imagem
+# e o VDI como artefato. O desenvolvimento continua no Windows; nada aqui
+# precisa de Linux na máquina do desenvolvedor.
+#
+# Segurança: só ações oficiais do GitHub, permissão de leitura, nenhum segredo
+# e nenhum pull_request_target. Pull requests de forks rodam com o token
+# somente leitura e sem acesso a segredos.
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - "feat/**"
+      - "fix/**"
+      - "ci/**"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Em pull requests e branches de trabalho, uma execução por referência: a nova
+# cancela a antiga. Na main, o grupo inclui o SHA do commit, então commits
+# diferentes não disputam a mesma vaga e cada um pode gerar a sua entrega.
+#
+# O GitHub mantém no máximo uma execução ativa e uma pendente por grupo. Se a
+# main usasse um grupo único, um terceiro push poderia substituir o segundo na
+# fila; por isso o SHA do commit faz parte do grupo.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}${{ github.ref == 'refs/heads/main' && format('-{0}', github.sha) || '' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  # As capturas dos testes vão para o build (que não é versionado), e não para
+  # docs/, para o CI não sujar a árvore de trabalho.
+  SAGUI_CAPTURAS: build/testes/capturas
+  SAGUI_IMAGEM: build/saguios.img
+  SAGUI_RAMDISK: build/ramdisk.sgfs
+  LANG: C.UTF-8
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  ci:
+    name: Compilar e testar no Ubuntu 24.04
+    runs-on: ubuntu-24.04
+    # A suíte completa tem dezenas de testes no QEMU, alguns com internet
+    # real. Quatro horas dão folga sem deixar uma execução travada por um dia.
+    timeout-minutes: 240
+
+    steps:
+      - name: Baixar o repositório
+        uses: actions/checkout@v7
+        with:
+          # O CI não faz push: não há por que guardar o token no git local.
+          persist-credentials: false
+
+      # Cria o arquivo antes de qualquer etapa que possa falhar. Assim o
+      # artefato de diagnóstico existe mesmo se o apt-get falhar.
+      - name: Preparar diretório de diagnóstico
+        run: |
+          set -eu
+          mkdir -p build/testes/capturas
+          : > build/testes/resultado.txt
+
+      # As dependências ficam no runner remoto. O Windows do desenvolvedor não
+      # precisa de gcc, nasm, QEMU nem de qualquer ferramenta Linux.
+      - name: Instalar dependências do Ubuntu
+        run: |
+          set -eu
+          set -o pipefail
+          {
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends \
+              binutils \
+              dosfstools \
+              fdisk \
+              ffmpeg \
+              gcc \
+              gcc-multilib \
+              htop \
+              imagemagick \
+              make \
+              mtools \
+              nasm \
+              openssh-client \
+              openssh-server \
+              openssl \
+              procps \
+              python3 \
+              python3-pil \
+              qemu-system-x86 \
+              qemu-utils \
+              vim
+            # O OpenSSH procura este diretório antes de abrir o sshd, mesmo
+            # quando ele roda como usuário comum nos testes H56 a H58.
+            sudo install -d -m 0755 /run/sshd
+            # O H45 pinga google.com de dentro do QEMU. O slirp usa soquetes
+            # ICMP sem privilégio, e o Ubuntu 24.04 do runner vem com a faixa
+            # fechada para usuários comuns. Abrir a faixa não torna a suíte
+            # root: o QEMU continua rodando como o usuário runner.
+            sudo sysctl -w net.ipv4.ping_group_range="0 2147483647"
+          } 2>&1 | tee -a build/testes/resultado.txt
+
+      - name: Conferir ferramentas e bibliotecas
+        run: |
+          set -eu
+          set -o pipefail
+          {
+            for cmd in \
+              gcc nasm ld objcopy objdump nm size make python3 \
+              qemu-system-i386 qemu-img \
+              convert identify \
+              mkfs.vfat fsck.vfat mcopy mmd mtype mdir mdel sfdisk \
+              sshd ssh-keygen openssl ffmpeg vim htop
+            do
+              if command -v "$cmd" >/dev/null 2>&1; then
+                caminho="$(command -v "$cmd")"
+              elif [ -x "/usr/sbin/$cmd" ]; then
+                caminho="/usr/sbin/$cmd"
+              else
+                echo "::error::ferramenta obrigatória não encontrada: $cmd"
+                exit 1
+              fi
+              printf '  %-18s %s\n' "$cmd" "$caminho"
+            done
+
+            # Pillow é usado pelos testes do Cipó, do HTML e das capturas.
+            python3 -c "import PIL; print('  Pillow ok:', PIL.__version__)"
+
+            # Confere que o processo do runner (não root) consegue criar o
+            # soquete ICMP que o QEMU usa no ping do H45.
+            python3 -c "import socket; s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_ICMP); s.close(); print('  ICMP sem privilégio ok')"
+
+            # Os testes de criptografia, JSON e HTML compilam em 32 bits com
+            # AddressSanitizer e UndefinedBehaviorSanitizer. Conferir aqui evita
+            # descobrir uma biblioteca de 32 bits faltando no meio da suíte.
+            tmp="$(mktemp -d)"
+            trap 'rm -rf "$tmp"' EXIT
+            printf 'int main(void) { return 0; }\n' > "$tmp/teste.c"
+            gcc -m32 -fsanitize=address,undefined "$tmp/teste.c" -o "$tmp/teste"
+            "$tmp/teste"
+            echo "  gcc -m32 com ASan/UBSan ok"
+
+            # O H82 só testa H.264/AAC de verdade se achar o ffmpeg com libx264.
+            # A suíte não pode passar "por falta de ffmpeg": exigimos os dois
+            # codificadores que o teste usa (libx264 e o AAC nativo).
+            ffmpeg -hide_banner -h encoder=libx264 >/dev/null 2>&1
+            ffmpeg -hide_banner -h encoder=aac >/dev/null 2>&1
+            echo "  ffmpeg com libx264 e AAC ok"
+          } 2>&1 | tee -a build/testes/resultado.txt
+
+      - name: Compilar a imagem
+        run: |
+          set -eu
+          set -o pipefail
+          # resultado.txt já foi criado após o checkout; não truncar aqui, para
+          # preservar os logs da instalação e da conferência.
+          make 2>&1 | tee -a build/testes/resultado.txt
+          test -s build/saguios.img
+          test -s build/saguios.img.sha256
+          test -s build/tamanho.txt
+          (cd build && sha256sum -c saguios.img.sha256)
+          echo "Imagem: $(wc -c < build/saguios.img) bytes; úteis: $(cat build/tamanho.txt) bytes"
+
+      - name: Rodar a suíte completa de testes
+        run: |
+          set -eu
+          set -o pipefail
+          python3 tests/rodar_todos.py 2>&1 | tee -a build/testes/resultado.txt
+
+      # A entrega é só da main, depois de compilar e de todos os testes
+      # passarem. O VDI também é gerado pelos testes H04, mas repetimos o alvo
+      # aqui para garantir os arquivos de entrega desta execução.
+      - name: Gerar a imagem VDI e conferir a entrega
+        if: success() && github.ref == 'refs/heads/main'
+        run: |
+          set -eu
+          set -o pipefail
+          make vdi 2>&1 | tee -a build/testes/resultado.txt
+          for arq in \
+            build/saguios.img \
+            build/saguios.img.sha256 \
+            build/saguios.vdi \
+            build/saguios.vdi.sha256 \
+            build/tamanho.txt
+          do
+            test -s "$arq" || { echo "::error::arquivo de entrega ausente ou vazio: $arq"; exit 1; }
+          done
+          (cd build && sha256sum -c saguios.img.sha256 && sha256sum -c saguios.vdi.sha256)
+          {
+            echo "## SaguiOS pronto para uso"
+            echo ""
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Imagem: $(wc -c < build/saguios.img) bytes"
+            echo "- Tamanho útil: $(cat build/tamanho.txt) bytes"
+            echo "- VDI: $(wc -c < build/saguios.vdi) bytes"
+            echo ""
+            echo "Baixe o artefato \`saguios-${GITHUB_SHA}\` na página desta execução."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publicar a entrega
+        if: success() && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v7
+        with:
+          name: saguios-${{ github.sha }}
+          path: |
+            build/saguios.img
+            build/saguios.img.sha256
+            build/saguios.vdi
+            build/saguios.vdi.sha256
+            build/tamanho.txt
+          retention-days: 14
+          if-no-files-found: error
+          # Uma nova tentativa da mesma execução substitui a entrega anterior
+          # em vez de falhar pelo nome do artefato já existir.
+          overwrite: true
+
+      # Em falha, os logs e as capturas ficam disponíveis para o diagnóstico,
+      # inclusive em pull requests de forks (não há segredo nenhum neles).
+      - name: Publicar logs da falha
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: saguios-ci-logs-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            build/testes/resultado.txt
+            build/testes/*.serial
+            build/testes/**/*.serial
+            build/testes/*.log
+            build/testes/**/*.log
+            build/testes/**/*.png
+            build/h68/**/*.serial
+            build/h68/**/*.log
+            build/h68/capturas/*.png
+          retention-days: 14
+          if-no-files-found: warn

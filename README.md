@@ -2,12 +2,14 @@
 
 # 🐒 SaguiOS
 
+[![CI](https://github.com/erigobeli/sagui-os/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/erigobeli/sagui-os/actions/workflows/ci.yml)
+
 **Um sistema operacional escrito do zero por IA**
 para PCs x86 de 32 bits, rodando de verdade num notebook de 2011.
 
 Feito por Claude (Anthropic) para o projeto do **Eli Rigobeli**.
 
-`562 KB` · `sem GRUB` · `sem libc` · `sem código de outros sistemas` · `37 testes automáticos`
+`562 KB` · `sem GRUB` · `sem libc` · `sem código de outros sistemas` · `suíte de testes automáticos`
 
 <img src="docs/capturas/B4-3-fase1-corredor.png" width="49%" alt="Sagui 3D, o jogo em primeira pessoa do SaguiOS">
 <img src="docs/capturas/H28-tres-programas.png" width="49%" alt="Área de trabalho do SaguiOS com três programas abertos">
@@ -99,7 +101,7 @@ na seção "Sagui 3D" de [`docs/decisoes.md`](docs/decisoes.md).
 | Imagem de boot | **575.488 bytes** úteis (39% de 1,44 MB) |
 | Linhas de código | boot 903, kernel 9.614, programas 6.317 (mais 3.591 de ferramentas e testes) |
 | Programas | 31 em `/bin`: shell, comandos e 8 programas gráficos |
-| Testes automáticos | 37, um por história, todos no QEMU |
+| Testes automáticos | uma suíte com testes no QEMU e no host; o CI roda todos |
 | Decisões registradas | 30, com o raciocínio de cada uma |
 | Erros registrados | 19, com sintoma, causa e correção |
 | Commits | ~55, um por história |
@@ -114,9 +116,36 @@ As imagens prontas estão em [`entrega/final/`](entrega/final/):
 
 O passo a passo está em [`docs/como-gravar.md`](docs/como-gravar.md).
 
+## Integração contínua
+
+Todo push na `main`, nas branches `feat/**`/`fix/**`/`ci/**` e todo pull
+request para a `main` passam pelo **GitHub Actions** num runner **Ubuntu
+24.04**. O workflow compila com o mesmo `make` do projeto e roda a suíte
+inteira no QEMU, sem pular testes: boot, memória, janelas, USB/FAT32, rede,
+DHCP, DNS, HTTPS, SSH com OpenSSH real, Cipó, compilador C, Sagui Code e vídeo
+H.264/AAC. Os testes de internet (H45, H53 e H63) usam a rede de verdade.
+
+O desenvolvimento continua no **Windows 11**: não é preciso instalar Ubuntu,
+WSL, Docker ou QEMU na máquina. A validação Linux acontece no runner do
+GitHub. Quando um commit na `main` compila e passa em tudo, o CI publica as
+imagens como artefato por 14 dias:
+
+1. abra a aba [**Actions**](https://github.com/erigobeli/sagui-os/actions/workflows/ci.yml);
+2. entre na execução da `main`;
+3. baixe o artefato `saguios-<commit>` em **Artifacts**;
+4. confira o SHA-256 antes de gravar: no Linux, `sha256sum -c saguios.img.sha256`
+   (e o do `.vdi`); no PowerShell, `Get-FileHash saguios.img -Algorithm SHA256`
+   e compare com o valor do arquivo `.sha256`.
+
+Pull requests e branches de trabalho não publicam artefatos de entrega. O
+funcionamento completo, as dependências e o diagnóstico de falhas estão em
+[`docs/ci-cd.md`](docs/ci-cd.md).
+
 ## Compilar e testar
 
-Requisitos (Ubuntu): `nasm gcc gcc-multilib binutils make python3 qemu-system-x86 qemu-utils imagemagick mtools dosfstools`.
+Requisitos (Ubuntu 24.04): `nasm gcc gcc-multilib binutils make python3
+python3-pil qemu-system-x86 qemu-utils imagemagick mtools dosfstools fdisk
+procps openssl openssh-client openssh-server vim htop ffmpeg`.
 
 ```bash
 make            # build/saguios.img
@@ -125,6 +154,9 @@ make test       # todos os testes no QEMU (sem janela)
 make rodar      # abre no QEMU com janela
 make run        # idem, com 768 MB, rede (e1000), som (intel-hda) e USB 2.0; SOM=alsa troca o áudio
 ```
+
+O CI chama `make` e `python3 tests/rodar_todos.py`; os mesmos comandos
+funcionam numa máquina Linux ou no WSL2.
 
 ## Estrutura
 

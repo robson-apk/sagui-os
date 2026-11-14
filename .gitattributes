@@ -1,0 +1,9 @@
+# O CI do SaguiOS roda no Linux. Estes arquivos precisam manter LF mesmo
+# quando o repositório é clonado no Windows (com core.autocrlf=true).
+.gitattributes text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.py text eol=lf
+*.sh text eol=lf
+Makefile text eol=lf
