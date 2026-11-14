@@ -4,10 +4,17 @@ O Cipó é o navegador do SaguiOS. Ele começou como um leitor de HTML em texto,
 imagens ou JavaScript ([D033](decisoes.md)). Este documento conta o que ele virou, o que
 ainda não faz e os problemas difíceis que apareceram no caminho.
 
-Tudo aqui foi escrito do zero para o SaguiOS, em C, sem bibliotecas de terceiros: rede,
-TLS, HTTP, HTML, CSS, layout, fontes, imagens, JavaScript, Canvas, WebGL, vídeo e áudio.
-A exceção são tabelas de dados copiadas de especificações ou de projetos abertos (dicionário
-do Brotli, contextos do CABAC, códigos de Huffman do AAC, tabelas Unicode).
+O código é em C, sem bibliotecas externas ligadas ao programa: rede, TLS, HTTP, HTML, CSS,
+layout, fontes, imagens, JavaScript, Canvas, WebGL, vídeo e áudio.
+
+**Correção (14/11/2026):** uma versão anterior deste texto dizia que tudo foi "escrito do
+zero". Isso estava errado. A revisão do mantenedor (decisão D043 no repositório principal)
+achou trechos que seguem de perto projetos conhecidos: o rasterizador de fontes por área
+acumulada (font-rs, Apache 2.0), o decodificador VP8 do WebP e suas tabelas (libwebp, BSD),
+o `toString` de números em outras bases (V8, BSD), as tabelas CABAC/CAVLC do H.264 (FFmpeg,
+LGPL 2.1+) e os livros de Huffman do AAC (FAAD2, GPL 2+). Também foram copiados dados de
+especificações: o dicionário do Brotli (RFC 7932) e as tabelas do Unicode. Na versão
+integrada ao projeto, cada trecho foi separado em `terceiros/` com a licença e a origem.
 
 **Resumo honesto:** o Cipó abre muitos sites de verdade (Wikipédia, Hacker News, DuckDuckGo,
 68k.news, páginas com fontes da web, SVG, canvas e WebGL). Ele ainda **não** é um navegador
