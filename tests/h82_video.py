@@ -69,24 +69,26 @@ def main():
     total = SEGUNDOS * 25
     verificar(mostrados + pulados == total, f"decodificou todos os quadros ({mostrados} mostrados, {pulados} pulados)")
     verificar(mostrados >= total // 2, "mostrou pelo menos metade dos quadros")
+    # O .wav começa no boot e inclui o som de início do sistema (523, 659,
+    # 784 e 1047 Hz). Medir do primeiro ao último trecho com som misturava
+    # aquelas notas com o tom do vídeo e dava 302 Hz. Cada janela de 0,1 s é
+    # medida sozinha; só as que têm som e cerca de 440 Hz contam.
     amostras, taxa = ler_wav(wav)
-    # O .wav tem também o som de início do sistema (SOM_INICIO, no boot); o
-    # áudio do vídeo é o maior trecho de som contínuo (sem 0,2 s de silêncio).
-    idx = [i for i, x in enumerate(amostras) if abs(x) > 500]
-    trechos, ini = [], None
-    for k, i in enumerate(idx):
-        if ini is None:
-            ini = i
-        if k + 1 == len(idx) or idx[k + 1] - i > taxa // 5:
-            trechos.append((ini, i))
-            ini = None
-    ini, fim = max(trechos, key=lambda t: t[1] - t[0]) if trechos else (0, 0)
-    trecho = amostras[ini:fim]
-    troca = sum(1 for i in range(1, len(trecho)) if (trecho[i] >= 0) != (trecho[i - 1] >= 0))
-    seg = len(trecho) / taxa if taxa else 0
-    freq = troca / 2 / seg if seg else 0
-    verificar(seg > SEGUNDOS * 0.8, f"tocou quase todo o áudio ({seg:.1f} s)")
-    verificar(400 < freq < 480, f"o som é o tom de 440 Hz do arquivo ({freq:.0f} Hz, convertido para 48 kHz)")
+    jan = taxa // 10
+    com_som = com_440 = 0
+    for k in range(0, len(amostras) - jan, jan):
+        trecho = amostras[k:k + jan]
+        if max(abs(a) for a in trecho) < 500:
+            continue
+        com_som += 1
+        # Cruzamentos de zero subindo: um por ciclo da onda.
+        cruz = sum(1 for a, b in zip(trecho, trecho[1:]) if a < 0 <= b)
+        if 400 < cruz * taxa / jan < 480:
+            com_440 += 1
+    minimo = SEGUNDOS * 8   # 80% do vídeo, em janelas de 0,1 s
+    verificar(com_som >= minimo, f"tocou quase todo o áudio ({com_som / 10:.1f} s)")
+    verificar(com_440 >= minimo,
+              f"o som é o tom de 440 Hz do arquivo ({com_440} de {com_som} janelas de 0,1 s com som, convertido para 48 kHz)")
     return 0
 
 
