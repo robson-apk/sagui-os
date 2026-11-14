@@ -52,7 +52,7 @@ def main():
               os.path.join(RAIZ, "tests", "navegador", "simulado", "sagui.h"), os.path.join(RAIZ, "tests", "json", "teste_json.c")):
         shutil.copy(f, PASTA)
     prog = os.path.join(PASTA, "teste_json")
-    r = subprocess.run(["gcc", "-m32", "-O1", "-g", "-fsanitize=address,undefined", "-fno-sanitize-recover", "-Wall", "-Wextra",
+    r = subprocess.run(["gcc", "-m32", "-std=gnu11", "-O1", "-g", "-fsanitize=address,undefined", "-fno-sanitize-recover", "-Wall", "-Wextra",
                         "-Werror", "-Wno-format-truncation", "-o", prog, os.path.join(PASTA, "teste_json.c"),
                         os.path.join(PASTA, "json.c")], capture_output=True, text=True)
     verificar(r.returncode == 0, "json.c compila (com verificação de memória)", r.stderr[-1500:])

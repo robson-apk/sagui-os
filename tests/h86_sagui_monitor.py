@@ -7,7 +7,8 @@ Abre /bin/sagui-monitor e confere:
 - as teclas M, N e P reordenam a lista (por memória, nome e CPU);
 - a escolha segue o processo ao reordenar, e a seta desce uma linha;
 - a janela é pintada com as cores do monitor;
-- Q fecha o programa com código 0.
+- Q fecha o programa com código 0;
+- o ajuda do shell lista o programa, e o menu do sagui o abre.
 """
 import os
 import re
@@ -67,6 +68,30 @@ def main():
         m.tecla("q")
         m.esperar_serial("(sagui-monitor) terminou com codigo 0", 20)
         verificar(True, "Q fecha com código 0")
+
+    # Sistema normal: o ajuda e o menu do sagui (o 9º item, depois de Configurações).
+    with Maquina("h86-menu", "ide") as m:
+        m.esperar_serial("sagui:/$", 120)
+        time.sleep(1)
+        out = m.comando("ajuda")
+        verificar("sagui-monitor" in out, "o ajuda lista o sagui-monitor")
+        out = m.comando("ajuda sagui-monitor")
+        verificar("CPU, memória e processos" in out, "ajuda sagui-monitor explica o programa")
+        antes = len(m.serial())
+        m.clique(40, 12)
+        fim = time.time() + 10
+        while "menu aberto" not in m.serial()[antes:] and time.time() < fim:
+            time.sleep(0.2)
+        time.sleep(0.5)
+        m.captura("H86-menu")
+        m.clique(40, 24 + 4 + 4 + 8 * 26 + 12)
+        fim = time.time() + 30
+        while 'criada por' not in m.serial()[antes:] or '"Sagui Monitor"' not in m.serial()[antes:]:
+            if time.time() > fim:
+                break
+            time.sleep(0.3)
+        verificar("abrir /bin/sagui-monitor" in m.serial()[antes:], "o menu do sagui abre /bin/sagui-monitor")
+        verificar('"Sagui Monitor"' in m.serial()[antes:], "a janela Sagui Monitor aparece")
 
 
 if __name__ == "__main__":

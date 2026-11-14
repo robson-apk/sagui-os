@@ -100,13 +100,19 @@ def main():
         m.esperar_serial("sagui3d: casca no chao", 5)
         verificar(True, "B larga a casca no chão")
         m.esperar_serial("viu o sagui", 5)
-        segurar(m, "ctrl", 1300)
+        # Um tiro por toque até o primeiro macaco ficar tonto. Segurar o Ctrl
+        # por um tempo fixo dava 5 a 7 tiros conforme o QEMU, e com 7 as
+        # sementes deixavam os dois macacos tontos: nenhum sobrava para a casca.
+        ini = len(m.serial())
+        for _ in range(10):
+            segurar(m, "ctrl", 60)
+            time.sleep(0.25)
+            if "ficou tonto" in m.serial()[ini:]:
+                break
         s = m.serial()
         verificar(re.search(r"tiro \(sementes 1[0-4]\)", s), "Ctrl atira sementes com o estilingue")
         m.esperar_serial("acertou macaco", 5)
         verificar(True, "a semente acerta o macaco-prego")
-        if "ficou tonto" not in m.serial():
-            segurar(m, "spc", 800)
         m.esperar_serial("ficou tonto e vai fugir", 5)
         verificar(True, "com três sementes o macaco fica tonto")
         time.sleep(0.8)

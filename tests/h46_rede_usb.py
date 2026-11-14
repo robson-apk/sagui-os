@@ -23,7 +23,7 @@ from qemu import RAIZ, SAIDA  # noqa: E402
 def main():
     os.makedirs(SAIDA, exist_ok=True)
     prog = os.path.join(SAIDA, "teste_ecm")
-    r = subprocess.run(["gcc", "-m32", "-O1", "-g", "-fsanitize=address,undefined", "-fno-sanitize-recover", "-Wall", "-Wextra",
+    r = subprocess.run(["gcc", "-m32", "-std=gnu11", "-O1", "-g", "-fsanitize=address,undefined", "-fno-sanitize-recover", "-Wall", "-Wextra",
                         "-Werror", "-I", os.path.join(RAIZ, "tests", "usb", "simulado"), "-I", os.path.join(RAIZ, "kernel", "inc"),
                         "-o", prog, os.path.join(RAIZ, "tests", "usb", "teste_ecm.c"),
                         os.path.join(RAIZ, "kernel", "usb", "ecm_descritores.c")], capture_output=True, text=True)

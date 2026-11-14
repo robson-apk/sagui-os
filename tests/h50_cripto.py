@@ -125,7 +125,7 @@ def compilar():
                 maior, dono = int(partes[1]), partes[0].split(":")[-1]
     verificar(0 < maior <= PILHA_MAX, f"nenhuma função usa mais de {PILHA_MAX} bytes de pilha (a maior: {dono}, {maior})")
 
-    executar(["gcc", "-m32", "-no-pie", "-O1", "-Wall", "-Wextra", "-I", FONTES, "-o", PROGRAMA,
+    executar(["gcc", "-m32", "-std=gnu11", "-no-pie", "-O1", "-Wall", "-Wextra", "-I", FONTES, "-o", PROGRAMA,
               os.path.join(RAIZ, "tests", "cripto", "teste_cripto.c"), *objetos])
     verificar(os.path.exists(PROGRAMA), "programa de teste ligado à biblioteca (32 bits)")
 

@@ -108,7 +108,7 @@ def preparar():
 def testar_decodificadores():
     nav = os.path.join(RAIZ, "userland", "navegador")
     prog = os.path.join(SAIDA, "h82-teste_decodificar")
-    r = subprocess.run(["gcc", "-m32", "-O1", "-g", "-fsanitize=address,undefined", "-fno-sanitize-recover",
+    r = subprocess.run(["gcc", "-m32", "-std=gnu11", "-O1", "-g", "-fsanitize=address,undefined", "-fno-sanitize-recover",
                         "-Wall", "-Wextra", "-Wno-unused-parameter", "-Wno-unused-function",
                         "-I", os.path.join(RAIZ, "tests", "navegador", "simulado"), "-I", nav, "-o", prog,
                         os.path.join(RAIZ, "tests", "navegador", "teste_decodificar.c"),

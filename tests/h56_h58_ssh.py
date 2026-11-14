@@ -115,7 +115,7 @@ def compilar():
     tamanhos = executar(["size", "-t", *objetos_ssh]).decode().strip().split("\n")[-1].split()
     print(f"      (userland/ssh: {tamanhos[0]} bytes de código, {tamanhos[1]} de dados, {tamanhos[2]} de bss)")
 
-    executar(["gcc", "-m32", "-no-pie", "-O1", "-D_GNU_SOURCE", "-Wall", "-Wextra", "-Werror", "-I", FONTES_SSH,
+    executar(["gcc", "-m32", "-std=gnu11", "-no-pie", "-O1", "-D_GNU_SOURCE", "-Wall", "-Wextra", "-Werror", "-I", FONTES_SSH,
               "-o", PROGRAMA, os.path.join(RAIZ, "tests", "ssh", "teste_ssh.c"), *objetos_ssh, *objetos_cripto])
     verificar(os.path.exists(PROGRAMA), "programa de teste ligado à biblioteca (32 bits)")
     tamanho = int(executar([PROGRAMA, "tamanho"]))

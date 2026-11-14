@@ -253,6 +253,9 @@ static int indice(const coisa_t *m) { return (int)(m - mapa.coisas); }
 
 static int macaco_acertado(coisa_t *m)
 {
+    /* Já tonto: a semente bate e cai, sem contar de novo (antes chegava a
+     * "4/3" e o macaco ficava tonto outra vez, com os pontos em dobro). */
+    if (m->acertos >= 3) return 0;
     m->acertos++;
     som_acerto();
     registrar("sagui3d: semente acertou macaco %d (%d/3)", indice(m), m->acertos);

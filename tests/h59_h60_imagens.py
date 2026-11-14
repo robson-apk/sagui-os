@@ -48,7 +48,7 @@ def compilar():
     os.makedirs(PASTA, exist_ok=True)
     fontes = [os.path.join(RAIZ, "tests", "navegador", "teste_imagens.c")] + \
              [os.path.join(NAV, f) for f in ("png.c", "jpeg.c", "descompactar.c")]
-    r = subprocess.run(["gcc", "-m32", "-O2", "-Wall", "-Wextra", "-Werror", "-Wno-unused-function",
+    r = subprocess.run(["gcc", "-m32", "-std=gnu11", "-O2", "-Wall", "-Wextra", "-Werror", "-Wno-unused-function",
                         "-I", os.path.join(RAIZ, "tests", "navegador", "simulado"), "-o", PROGRAMA] + fontes,
                        capture_output=True, text=True)
     verificar(r.returncode == 0, "decodificadores compilam no computador", r.stderr[-2000:])

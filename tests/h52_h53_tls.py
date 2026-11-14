@@ -107,7 +107,7 @@ def compilar():
     tamanhos = executar(["size", "-t", *objetos_tls]).decode().strip().split("\n")[-1].split()
     print(f"      (userland/tls: {tamanhos[0]} bytes de código, {tamanhos[1]} de dados, {tamanhos[2]} de bss)")
 
-    executar(["gcc", "-m32", "-no-pie", "-O1", "-Wall", "-Wextra", "-Werror", "-I", FONTES_TLS, "-o", PROGRAMA,
+    executar(["gcc", "-m32", "-std=gnu11", "-no-pie", "-O1", "-Wall", "-Wextra", "-Werror", "-I", FONTES_TLS, "-o", PROGRAMA,
               os.path.join(RAIZ, "tests", "tls", "teste_tls.c"), *objetos_tls, *objetos_cripto])
     verificar(os.path.exists(PROGRAMA), "programa de teste ligado à biblioteca (32 bits)")
 

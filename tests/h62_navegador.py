@@ -117,7 +117,7 @@ def compilar_referencia(saida, opcoes=("-O2",)):
                                         "descompactar.c")] + \
         [os.path.join(RAIZ, "terceiros", f) for f in ("font-rs/acumulador.c", "libwebp-vp8/vp8.c")] + \
         [os.path.join(RAIZ, "build", "gerado", "fonte8x16.c")]
-    return subprocess.run(["gcc", "-m32", *opcoes, "-msse2", "-mfpmath=sse", "-Wall", "-Wextra", "-Werror",
+    return subprocess.run(["gcc", "-m32", "-std=gnu11", *opcoes, "-msse2", "-mfpmath=sse", "-Wall", "-Wextra", "-Werror",
                            "-Wno-unused-function", "-Wno-misleading-indentation", "-Wno-unused-parameter", "-Wno-stringop-truncation",
                            "-finput-charset=UTF-8", "-fexec-charset=ISO-8859-1", "-DMOTOR_HOST",
                            "-DPASTA_FONTES_HOST=\"" + os.path.join(RAIZ, "rootfs") + "\"",
@@ -127,7 +127,7 @@ def compilar_referencia(saida, opcoes=("-O2",)):
 
 def testar_enderecos():
     programa = os.path.join(SAIDA, "h62-teste_enderecos")
-    r = subprocess.run(["gcc", "-m32", "-O1", "-g", "-fsanitize=address,undefined", "-Wall", "-Wextra", "-Werror",
+    r = subprocess.run(["gcc", "-m32", "-std=gnu11", "-O1", "-g", "-fsanitize=address,undefined", "-Wall", "-Wextra", "-Werror",
                         "-Wno-format-truncation", "-I", os.path.join(RAIZ, "tests", "navegador", "simulado"), "-o", programa,
                         os.path.join(RAIZ, "tests", "navegador", "teste_enderecos.c"),
                         os.path.join(RAIZ, "userland", "navegador", "enderecos.c")], capture_output=True, text=True)

@@ -63,7 +63,7 @@ def preparar():
     """O compilador para o Linux e a libsagui com as chamadas do Linux."""
     os.makedirs(B, exist_ok=True)
     fontes = sorted(f for f in glob.glob(os.path.join(RAIZ, "userland", "compilador", "*.c")) if not f.endswith("/cc.c"))
-    r = rodar(["gcc", "-O1", "-Wall", "-Wextra", "-fno-builtin", "-o", CC, os.path.join(AQUI, "cc_linux.c")] + fontes)
+    r = rodar(["gcc", "-std=gnu11", "-O1", "-Wall", "-Wextra", "-fno-builtin", "-o", CC, os.path.join(AQUI, "cc_linux.c")] + fontes)
     verificar(r.returncode == 0 and not r.stderr, "o núcleo do compilador compila para o Linux sem avisos" + r.stderr.decode()[:400])
     r = rodar(["gcc"] + UCFLAGS + ["-c", "-o", os.path.join(B, "chamadas_linux.o"), os.path.join(AQUI, "chamadas_linux.c")])
     if r.returncode != 0:

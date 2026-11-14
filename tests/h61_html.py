@@ -34,7 +34,7 @@ def verificar(condicao, mensagem, detalhe=""):
 
 def main():
     os.makedirs(PASTA, exist_ok=True)
-    r = subprocess.run(["gcc", "-m32", "-O1", "-g", "-fsanitize=address,undefined", "-fno-sanitize-recover",
+    r = subprocess.run(["gcc", "-m32", "-std=gnu11", "-O1", "-g", "-fsanitize=address,undefined", "-fno-sanitize-recover",
                         "-Wall", "-Wextra", "-Werror",
                         "-I", os.path.join(RAIZ, "tests", "navegador", "simulado"), "-o", PROGRAMA,
                         os.path.join(RAIZ, "tests", "navegador", "teste_html.c"),

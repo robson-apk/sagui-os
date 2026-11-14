@@ -70,8 +70,18 @@ def main():
     verificar(mostrados + pulados == total, f"decodificou todos os quadros ({mostrados} mostrados, {pulados} pulados)")
     verificar(mostrados >= total // 2, "mostrou pelo menos metade dos quadros")
     amostras, taxa = ler_wav(wav)
+    # O .wav tem também o som de início do sistema (SOM_INICIO, no boot); o
+    # áudio do vídeo é o maior trecho de som contínuo (sem 0,2 s de silêncio).
     idx = [i for i, x in enumerate(amostras) if abs(x) > 500]
-    trecho = amostras[idx[0]:idx[-1]] if idx else []
+    trechos, ini = [], None
+    for k, i in enumerate(idx):
+        if ini is None:
+            ini = i
+        if k + 1 == len(idx) or idx[k + 1] - i > taxa // 5:
+            trechos.append((ini, i))
+            ini = None
+    ini, fim = max(trechos, key=lambda t: t[1] - t[0]) if trechos else (0, 0)
+    trecho = amostras[ini:fim]
     troca = sum(1 for i in range(1, len(trecho)) if (trecho[i] >= 0) != (trecho[i - 1] >= 0))
     seg = len(trecho) / taxa if taxa else 0
     freq = troca / 2 / seg if seg else 0
