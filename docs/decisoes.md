@@ -1511,3 +1511,17 @@ tipo no `info_sistema`, que já serve memória, processos e versão:
   pendrive grande, mesmo sem ninguém querer saber); depois, alocar e liberar
   clusters já mantêm a conta em dia. A FAT é lida em blocos de 64 setores.
   Se a conta difere do FSInfo, uma linha no log diz quanto era e quanto é.
+
+## D047. Todo o userland realinha a pilha para o SSE2 (H63)
+
+O D042 fez os programas usarem SSE2, e o D043 já tinha corrigido a pilha
+inicial e as pilhas trocadas do Cipó e do tocador. Faltava o outro lado: a
+`libsagui`, onde ficam o TLS e o x25519, continuava compilada sem
+`-mstackrealign`. Na segunda conexão HTTPS, feita com a pilha trocada à mão
+pelo motor, o `x25519` recebia uma pilha alinhada só em 8 bytes e o `movdqa`
+que guarda um vetor de 16 bytes dava proteção geral.
+
+Agora o `UCFLAGS` leva `-mstackrealign` para todo o userland. Cada função
+alinha a própria pilha ao entrar, então qualquer pilha trocada à mão (motor,
+JavaScript, compilador ou um programa futuro) é segura, e o Cipó e o tocador
+não precisam mais do flag separado. O kernel continua sem SSE e sem esse custo.

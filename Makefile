@@ -44,7 +44,12 @@ ROOTFS     := $(shell find rootfs -type f | sort)
 # SSE2 (double exato, IEEE 754, como o JavaScript pede), e não pela FPU x87,
 # que calcula com 80 bits por dentro e dá resultados que mudam conforme o
 # compilador guarda ou não os valores na memória.
+# -mstackrealign: com o SSE2, o gcc guarda valores de 16 bytes na pilha com
+# instruções que exigem alinhamento. Cada função alinha a própria pilha ao
+# entrar, então uma pilha trocada à mão (motor, JavaScript, compilador) não
+# derruba o programa num movdqa, mesmo quando quem chama é código da libsagui.
 UCFLAGS := -m32 -march=i686 -msse2 -mfpmath=sse -std=gnu11 -O2 \
+           -mstackrealign \
            -ffreestanding -fno-builtin -nostdlib -fno-pic -fno-pie \
            -fno-stack-protector -fno-asynchronous-unwind-tables \
            -ffunction-sections -fdata-sections \
@@ -160,10 +165,8 @@ $(B)/userland/bin/sagui3d: $(SAGUI3D_OBJ) $(LIBSAGUI_OBJ) userland/programa.ld
 	$(LD) $(ULDFLAGS) -o $@.elf $(SAGUI3D_OBJ) $(LIBSAGUI_OBJ)
 	objcopy --strip-all $@.elf $@
 
-# -mstackrealign: o motor faz contas em double com SSE2, e o gcc pode guardar
-# valores de 16 bytes na pilha; assim cada função alinha a própria pilha.
 # -fno-math-errno: sqrt vira a instrução do SSE2 (não há libm).
-NAV_CFLAGS := $(UCFLAGS) -mstackrealign -fno-math-errno -Iuserland/navegador -I$(B)/gerado
+NAV_CFLAGS := $(UCFLAGS) -fno-math-errno -Iuserland/navegador -I$(B)/gerado
 
 $(B)/nav/%.o: %.c $(NAVEGADOR_HDR) $(USER_HDR)
 	@mkdir -p $(dir $@)
