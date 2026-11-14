@@ -771,6 +771,39 @@ static void mudar_tamanho(int l, int a_px)
 
 /* ------------------------------------------------------------ laço */
 
+/* Cópia da primeira aba para a serial, que é o log lido pelos testes. Sai por
+ * linha inteira: copiando cada pedaço lido do pipe, uma linha escrita em
+ * partes ("inicio " e depois o número) podia ser cortada pelo aviso do kernel
+ * de que o programa terminou, que chega entre os dois pedaços. O que sobra sem
+ * '\n' (o prompt, por exemplo) sai quando o pipe fica 30 ms sem nada novo. */
+static char serial_pend[2048];
+static int serial_qtd;
+static unsigned serial_quando;
+
+static void copia_serial(const char *b, int n)
+{
+    for (int k = 0; k < n; k++) {
+        if (serial_qtd == (int)sizeof serial_pend) { escrever(SAIDA, serial_pend, (unsigned)serial_qtd); serial_qtd = 0; }
+        serial_pend[serial_qtd++] = b[k];
+    }
+    int ultima = -1;
+    for (int k = serial_qtd - 1; k >= 0; k--) if (serial_pend[k] == '\n') { ultima = k; break; }
+    if (ultima >= 0) {
+        escrever(SAIDA, serial_pend, (unsigned)(ultima + 1));
+        serial_qtd -= ultima + 1;
+        memmove(serial_pend, serial_pend + ultima + 1, (size_t)serial_qtd);
+    }
+    serial_quando = tempo_ms();
+}
+
+static void copia_serial_resto(void)
+{
+    if (serial_qtd > 0 && tempo_ms() - serial_quando >= 30) {
+        escrever(SAIDA, serial_pend, (unsigned)serial_qtd);
+        serial_qtd = 0;
+    }
+}
+
 int principal(int argc, char **argv)
 {
     /* terminal -e programa [argumentos]: abre já rodando o programa (o Editor
@@ -789,6 +822,7 @@ int principal(int argc, char **argv)
     evento_t e;
     for (;;) {
         bool fez = false;
+        copia_serial_resto();
         for (int i = 0; i < MAX_ABAS; i++) {
             aba_t *a = &abas[i];
             if (!a->usada) continue;
@@ -801,7 +835,7 @@ int principal(int argc, char **argv)
             if (d > 0) {
                 int n = ler(a->saida, buf, sizeof buf);
                 for (int k = 0; k < n; k++) receber_byte(a, (uint8_t)buf[k]);
-                if (n > 0 && i == 0) escrever(SAIDA, buf, (unsigned)n);   /* cópia para a serial (os testes leem) */
+                if (n > 0 && i == 0) copia_serial(buf, n);   /* cópia para a serial (os testes leem) */
                 if (n > 0 && i == atual_aba && a->olhando) { a->olhando = 0; sujar_tudo(); }
                 fez = true;
             }

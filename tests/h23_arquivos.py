@@ -84,7 +84,8 @@ def main():
         time.sleep(0.3)
         m.digitar("teste\n", 0.05)
         m.esperar_serial("arquivos: pasta criada /tmp/teste", 10)
-        verificar("arquivos: pasta /tmp (2 itens)" in m.serial(), "pasta /tmp/teste criada e aparece na lista")
+        m.esperar_serial("arquivos: pasta /tmp (2 itens)", 10)   # a lista é relida logo depois de criar
+        verificar(True, "pasta /tmp/teste criada e aparece na lista")
         m.clique(*item(a, 0))                                      # seleciona teste/
         m.clique(a["x"] + 224 + 45, a["y"] + 7 + 13)              # Apagar
         m.esperar_serial('"Apagar"', 10)
@@ -93,6 +94,9 @@ def main():
         d = janela(m.serial(), "Apagar")
         m.clique(d["x"] + 380 - 16 - 45, d["y"] + d["a"] - 40 + 13)   # Sim
         m.esperar_serial("arquivos: apagado /tmp/teste", 10)
+        fim = time.time() + 10                                     # a lista é relida logo depois de apagar
+        while m.serial().count("arquivos: pasta /tmp (1 itens)") < 2 and time.time() < fim:
+            time.sleep(0.2)
         verificar(m.serial().count("arquivos: pasta /tmp (1 itens)") >= 2, "pasta apagada (com confirmação) e some da lista")
         fechar(m, a)                                               # o foco volta para o Terminal
         m.esperar_serial("(arquivos) terminou", 10)
