@@ -45,6 +45,8 @@ typedef struct {
     int        pid;
     int        x, y;          /* canto da moldura */
     int        larg, alt;     /* área de conteúdo */
+    int        vl, va;        /* H96: tamanho com que o programa desenha em px agora */
+    int        pend_l, pend_a;    /* tamanho do último EV_REDIMENSIONAR já lido (0 = nenhum) */
     char       titulo[48];
     uint32_t  *px;            /* pixels (físico = virtual no kernel) */
     uint32_t   paginas;
@@ -961,10 +963,8 @@ static void aplicar_tamanho(janela_t *j, int x, int y, int l, int a)
     if (l > lmax) l = lmax;
     if ((uint32_t)(l * a) > j->cap_px) a = (int)(j->cap_px / (uint32_t)l);
     redesenhar_janela(j);
-    if (l != j->larg || a != j->alt) {
-        /* Até o programa redesenhar, a área nova fica na cor de fundo das janelas. */
-        for (uint32_t k = 0; k < (uint32_t)(l * a); k++) j->px[k] = 0xF4F4F0;
-    }
+    /* H96: px continua com o desenho antigo (largura vl) até o programa ler
+     * o evento e redesenhar; a composição mostra o antigo, cortado. */
     j->x = x; j->y = y; j->larg = l; j->alt = a;
     redesenhar_janela(j);
     evento_t e = { .tipo = EV_REDIMENSIONAR, .x = l, .y = a };
@@ -1121,7 +1121,13 @@ void gui_mostrar(void)
         janela_t *j = &janelas[ordem[k]];
         if (j->minimizada || j->escondida) continue;
         desenhar_moldura(j, j == f);
-        sup_copiar(&tela, j->x + BORDA, j->y + BARRA_TITULO, j->px, j->larg, j->alt, j->larg);
+        {
+            int vl = j->vl < j->larg ? j->vl : j->larg, va = j->va < j->alt ? j->va : j->alt;
+            int cx = j->x + BORDA, cy = j->y + BARRA_TITULO;
+            sup_copiar(&tela, cx, cy, j->px, vl, va, j->vl);
+            if (vl < j->larg) sup_retangulo(&tela, cx + vl, cy, j->larg - vl, j->alt, 0xF4F4F0);
+            if (va < j->alt) sup_retangulo(&tela, cx, cy + va, vl, j->alt - va, 0xF4F4F0);
+        }
         vidro_aplicar_cantos(&tela, j->x, j->y, moldura_l(j), moldura_a(j));
     }
     desenhar_anims();
@@ -1802,6 +1808,7 @@ int32_t sis_criar_janela(uint32_t ptitulo, uint32_t dims, uint32_t ppixels, uint
     j->id = proximo_id++;
     j->pid = atual->pid;
     j->larg = l; j->alt = a;
+    j->vl = l; j->va = a; j->pend_l = 0;
     j->px = (uint32_t *)fis;
     j->paginas = paginas;
     j->virt = JANELAS_USUARIO + (uint32_t)i * ESPACO_JANELA;
@@ -1844,6 +1851,10 @@ int32_t sis_atualizar_janela(uint32_t id, uint32_t pret, uint32_t c, uint32_t d,
     (void)c; (void)d; (void)e;
     janela_t *j = janela_do_processo((int)id);
     if (!j) return ERRO_INVALIDO;
+    if (j->pend_l) {                     /* H96: o programa já desenha no tamanho novo */
+        j->vl = j->pend_l; j->va = j->pend_a; j->pend_l = 0;
+        redesenhar_janela(j);
+    }
     int x = 0, y = 0, l = j->larg, a = j->alt;
     if (pret) {
         if (!usuario_ok((void *)pret, sizeof(retangulo_t), false)) return ERRO_ENDERECO;
@@ -1870,6 +1881,7 @@ int32_t sis_proximo_evento(uint32_t id, uint32_t pev, uint32_t esperar, uint32_t
         tem_janela = true;
         if (j->ini != j->fim) {
             *(evento_t *)pev = j->fila[j->ini];
+            if (j->fila[j->ini].tipo == EV_REDIMENSIONAR) { j->pend_l = j->fila[j->ini].x; j->pend_a = j->fila[j->ini].y; }
             j->ini = (j->ini + 1) % FILA_EVENTOS;
             return 1;
         }
