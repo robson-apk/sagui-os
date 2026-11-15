@@ -335,7 +335,7 @@ static void abrir_item(int i)
         argv[0] = "visualizador"; argv[1] = c; argv[2] = NULL;
         pid = executar("/bin/visualizador", argv);
         registrar("arquivos: abrindo no visualizador %s (pid %d)", c, pid);
-    } else if (tem_extensao(nomes[i], ".wav")) {
+    } else if (tem_extensao(nomes[i], ".m4a")) {   /* o .wav e o .mp3 vão para o Tocador (tabela) */
         argv[0] = "musica"; argv[1] = c; argv[2] = NULL;
         pid = executar("/bin/musica", argv);
         registrar("arquivos: abrindo no tocador %s (pid %d)", c, pid);
@@ -618,7 +618,7 @@ int principal(int argc, char **argv)
             const char *n = lista.sel >= 0 ? nomes[lista.sel] : "";
             const char *primeiro = !prog ? "Abrir"
                 : tem_extensao(n, ".png|.jpg|.jpeg|.gif|.webp|.bmp") ? "Abrir no Visualizador"   /* H87 */
-                : tem_extensao(n, ".wav") ? "Abrir na Música"
+                : tem_extensao(n, ".m4a") ? "Abrir na Música"
                 : tem_extensao(n, ".zip") ? "Extrair..."
                 : compara_texto(prog, "/bin/tocador") == 0 ? "Abrir no Tocador"
                 : compara_texto(prog, "/bin/cipo") == 0 ? "Abrir no Cipó"

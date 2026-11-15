@@ -157,6 +157,44 @@ void area_icone_retangulo(int i, int *x, int *y, int *l, int *a)
     *l = ICONE_L; *a = ICONE_A;
 }
 
+/* ------------------------------------------------------------ seleção (H90)
+ *
+ * O laço translúcido da área de trabalho veio do commit 0b3c462 do Robson
+ * (ramo area-lixeira, do código da 1.0), refeito para o código atual: os
+ * ícones tocados pelo retângulo ficam marcados; um clique num ícone marca só
+ * ele; clicar no vazio desmarca. */
+static bool selecionado[QTD_ICONES + MAX_INSTALADOS];
+
+void area_selecionar(int x, int y, int l, int a, bool somar)
+{
+    for (int i = 0; i < QTD_ICONES + qtd_instalados; i++) {
+        if (!somar) selecionado[i] = false;
+        if (!icone_visivel(i)) continue;
+        int ix, iy, il, ia;
+        area_icone_retangulo(i, &ix, &iy, &il, &ia);
+        if (ix < x + l && x < ix + il && iy < y + a && y < iy + ia) selecionado[i] = true;
+    }
+}
+
+bool area_limpar_selecao(void)
+{
+    bool havia = false;
+    for (int i = 0; i < QTD_ICONES + MAX_INSTALADOS; i++) { havia |= selecionado[i]; selecionado[i] = false; }
+    return havia;
+}
+
+bool area_icone_selecionado(int i)
+{
+    return i >= 0 && i < QTD_ICONES + qtd_instalados && selecionado[i] && icone_visivel(i);
+}
+
+int area_qtd_selecionados(void)
+{
+    int n = 0;
+    for (int i = 0; i < QTD_ICONES + qtd_instalados; i++) n += area_icone_selecionado(i);
+    return n;
+}
+
 /* ------------------------------------------------------------ fundos (H81)
  *
  * "Brasil com sol" e "Mata Atlântica" vieram do pull request #1 do Robson

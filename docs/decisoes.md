@@ -1704,3 +1704,26 @@ categorias.
 **Compatibilidade.** Os testes que clicavam em itens do menu antigo (`h74_h77`,
 `h78`, `h86`, `h88`) agora clicam na grade. O item k fica em
 `(28 + (k % 5) * 108 + 54, 134 + (k // 5) * 92 + 30)`.
+
+## D052. Laço de seleção na área de trabalho (H90)
+
+**Origem.** O laço translúcido foi feito pelo Robson no commit 0b3c462 (ramo
+`area-lixeira`, sobre a 1.0). O commit foi junto do pull request do Cipó (#6),
+de que só o navegador entrou na 2.1, e nunca chegou ao main.
+
+**Decisão.** Ele foi refeito sobre o código atual, só com o que o main tem
+hoje:
+- arrastar no vazio da área de trabalho desenha um retângulo translúcido na cor
+  do filete do tema, por cima do fundo e por baixo das janelas;
+- ao soltar, os ícones que ele toca ficam marcados com um destaque redondo e
+  translúcido; com Shift, eles se somam aos que já estavam marcados;
+- um clique num ícone marca só ele, e clicar no vazio desmarca.
+
+**Ficou de fora.** Arrastar ícones em grupo e mandar ícones para uma lixeira
+existiam na versão de 0b3c462. O main não tem nenhum dos dois: os ícones ficam
+numa grade fixa, e a lixeira (H87) é de arquivos, no Arquivos. São mudanças
+separadas.
+
+**Menu Iniciar.** Os chips das categorias passavam da borda do painel. O menu
+foi para 620 pixels, a sobra da fileira agora é repartida entre os chips
+(`chip_folga`) e a grade fica centralizada.

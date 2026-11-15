@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from qemu import Maquina, FalhaTeste, verificar  # noqa: E402
 
 MENU_X, MENU_Y = 4, 24 + 4
-GRADE_X, GRADE_Y = MENU_X + 24, MENU_Y + 106
+GRADE_X, GRADE_Y = MENU_X + (620 - 5 * 108) // 2, MENU_Y + 106
 CHIPS_Y = MENU_Y + 62
 
 
@@ -62,10 +62,14 @@ def main():
 
         # Categoria Jogos: Todos(0) Internet(1) Escritório(2) Mídia(3) Jogos(4).
         abrir_menu(m)
-        larg = {"Todos": 5, "Internet": 8, "Escritório": 10, "Mídia": 5}
+        # Os chips repartem a sobra da fileira (chip_folga no kernel).
+        letras = {"Todos": 5, "Internet": 8, "Escritório": 10, "Mídia": 5, "Jogos": 5, "Sistema": 7, "Programação": 11}
+        folga = min(22, (620 - 32 - sum(letras.values()) * 8 - 6 * 6) // 7)
         x = MENU_X + 16
         for nome in ["Todos", "Internet", "Escritório", "Mídia"]:
-            x += larg[nome] * 8 + 22 + 6
+            x += letras[nome] * 8 + folga + 6
+        fim = MENU_X + 16 + sum(n * 8 + folga for n in letras.values()) + 6 * 6
+        verificar(fim <= MENU_X + 620 - 16, f"as categorias cabem no menu (terminam em {fim})")
         n = len(m.serial())
         m.clique(x + 20, CHIPS_Y + 13)
         esperar(m, "[GUI] menu: categoria Jogos", 10, n)

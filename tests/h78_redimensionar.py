@@ -102,7 +102,7 @@ def main():
         antes = len(m.serial())
         m.clique(40, 12)                                    # menu do sagui > Calculadora
         time.sleep(0.5)
-        m.clique(28 + 3 * 108 + 54, 134 + 0 * 92 + 30)   # H89: grade do menu Iniciar, item 3
+        m.clique(44 + 3 * 108 + 54, 134 + 0 * 92 + 30)   # H89: grade do menu Iniciar, item 3
         esperar(m, '"Calculadora"', 20, antes)
         time.sleep(1.5)
         c = moldura(m, "Calculadora")

@@ -29,6 +29,11 @@ void area_icone_direito(int i);
 #define ACAO_ESCONDER   4
 #define ACAO_DESMONTAR  5
 const char *area_icone_nome(int i);      /* H89 */
+/* H90: seleção de ícones pelo laço (somar: mantém os já marcados). */
+void area_selecionar(int x, int y, int l, int a, bool somar);
+bool area_limpar_selecao(void);            /* true se havia algo marcado */
+bool area_icone_selecionado(int i);
+int  area_qtd_selecionados(void);
 int  area_icone_tipo(int i);              /* 0 sistema, 1 instalado, 2 pendrive */
 void area_icone_acao(int i, int acao);
 bool area_pendrive(bool presente, const char *rotulo);

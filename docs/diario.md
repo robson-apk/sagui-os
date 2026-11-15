@@ -280,3 +280,34 @@ Log cronológico do que foi feito. Uma entrada por bloco de trabalho.
   banana. A causa ainda não foi achada; fica em aberto. A raiz quadrada da
   sombra nova era um laço de até cerca de 200 passos por pixel; virou bit a bit
   e só roda nos cantos, mas isso não resolveu.
+
+## 2026-11-15 14:40
+
+### Merge do upstream e H90
+
+- O main local estava 10 commits atrás do `erigobeli/main`: Tocador com MP3,
+  área de cópia, ícones por tipo no Arquivos e regras novas de pull request.
+  O merge teve 11 conflitos:
+  - os dois lados usaram a chamada 78. `SIS_AREA_COPIA` fica com o 78 e
+    `SIS_LER_TELA` passa para o 79;
+  - as decisões do H63 ao H89 viraram D048 a D051, porque a D047 é a do MP3;
+  - no Arquivos, imagem abre no Visualizador, .wav na Música, .zip extrai, e
+    o resto segue a tabela nova (.mp3 no Tocador);
+  - o Tocador entra no menu Iniciar, na categoria Mídia.
+- Rede: nenhum dos 10 commits mexe nela. O DNS do Mac continua 1.1.1.1, que
+  não responde nessa rede.
+- H90: laço de seleção (D052). Teste novo `h90_laco`. Ele confere que o laço
+  é translúcido (a cor muda, mas o fundo continua aparecendo), que marca os 2
+  ícones tocados, que um clique marca só a Calculadora e que clicar no vazio
+  desmarca.
+- Menu Iniciar: os chips não passam mais da borda (terminam em 604, e o
+  painel vai até 624).
+- Suíte completa depois do merge: 84 de 89. Três causas:
+  - `h16`, `h24` e `h68` contam os programas de `/bin`, e as listas não
+    tinham `tocador` e `mp3info`;
+  - o `h87_tocador` do upstream espera o .wav no Tocador. A escolha dele
+    vale: o .wav e o .mp3 vão para o Tocador, e a Música fica com o .m4a;
+  - o `b4_sagui3d` continua intermitente.
+
+  Depois da correção, `h16`, `h24`, `h68`, `h87_tocador`, `h23` e
+  `h87_utilitarios` passaram de novo.

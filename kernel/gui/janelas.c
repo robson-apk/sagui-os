@@ -374,14 +374,14 @@ static const programa_menu_t catalogo[] = {
 #define QTD_CATALOGO (int)(sizeof catalogo / sizeof catalogo[0])
 #define MENU_X 4
 #define MENU_Y (BARRA_SUPERIOR + 4)
-#define MENU_L 588
+#define MENU_L 620
 #define MENU_ALT 544
 #define MENU_ITEM 26          /* menu de contexto */
 #define MENU_COLUNAS 5
 #define MENU_LINHAS 4
 #define MENU_CEL_L 108
 #define MENU_CEL_A 92
-#define MENU_GRADE_X (MENU_X + 24)
+#define MENU_GRADE_X (MENU_X + (MENU_L - MENU_COLUNAS * MENU_CEL_L) / 2)
 #define MENU_GRADE_Y (MENU_Y + 106)
 #define MENU_BUSCA_Y (MENU_Y + 16)
 #define MENU_CHIPS_Y (MENU_Y + 62)
@@ -400,6 +400,7 @@ static char menu_busca[40];
 static int menu_res[MENU_COLUNAS * MENU_LINHAS], menu_qtd;
 
 static void abrir_programa(const char *caminho);
+static void desenhar_selecao(void);   /* H90: laço da área de trabalho */
 
 static void redesenhar_menu(void)
 {
@@ -461,7 +462,21 @@ static bool ha_instalados(void)
     return false;
 }
 
-static int chip_largura(int c) { return texto_largura(cat_nomes[c]) + 22; }
+/* Folga dos chips: a sobra da fileira dividida entre eles, para a fileira
+ * caber sempre no painel (com ou sem "Instalados"). */
+#define CHIP_VAO 6
+static int chip_folga(void)
+{
+    int n = 0, soma = 0;
+    for (int c = 0; c < QTD_CATS; c++) {
+        if (c == CAT_INSTALADOS && !ha_instalados()) continue;
+        n++;
+        soma += texto_largura(cat_nomes[c]);
+    }
+    int f = (MENU_L - 32 - soma - (n - 1) * CHIP_VAO) / n;
+    return f > 22 ? 22 : f;
+}
+static int chip_largura(int c) { return texto_largura(cat_nomes[c]) + chip_folga(); }
 
 /* Nome que cabe em l pixels: corta com "..". */
 static void nome_cortado(char *saida, int tam, const char *nome, int l)
@@ -513,8 +528,8 @@ static void desenhar_menu(void)
             bool ativo = c == menu_cat, sob = menu_sob == ALVO_CAT + c;
             uint32_t fundo = ativo ? tema->destaque : sob ? cor_mistura(caixa, tema->destaque, 1, 3) : caixa;
             suave_ret(&sv, x, MENU_CHIPS_Y, l, 26, 13, fundo, fundo, 256);
-            sup_texto(&tela, x + 11, MENU_CHIPS_Y + 5, cat_nomes[c], ativo ? 0xFFFFFF : texto);
-            x += l + 6;
+            sup_texto(&tela, x + (l - texto_largura(cat_nomes[c])) / 2, MENU_CHIPS_Y + 5, cat_nomes[c], ativo ? 0xFFFFFF : texto);
+            x += l + CHIP_VAO;
         }
     } else {
         char t[72];
@@ -580,7 +595,7 @@ static int menu_alvo_em(int x, int y)
             if (c == CAT_INSTALADOS && !ha_instalados()) continue;
             int l = chip_largura(c);
             if (x >= cx && x < cx + l) return ALVO_CAT + c;
-            cx += l + 6;
+            cx += l + CHIP_VAO;
         }
         return -1;
     }
@@ -998,6 +1013,7 @@ void gui_mostrar(void)
     sup_recorte(&tela, x, y, l, a);
     if (tela.cx0 >= tela.cx1 || tela.cy0 >= tela.cy1) return;
     area_fundo(&tela);
+    desenhar_selecao();
     janela_t *f = focada();
     for (int k = 0; k < qtd; k++) {
         janela_t *j = &janelas[ordem[k]];
@@ -1170,8 +1186,69 @@ static janela_t *tarefa_em(int x, int y)
     return &janelas[ordem[n]];
 }
 
+/* ------------------------------------------------------------ laço da área de trabalho (H90)
+ *
+ * Arrastar no vazio da área de trabalho desenha um retângulo translúcido;
+ * ao soltar, os ícones que ele toca ficam marcados (com Shift, somam aos já
+ * marcados). Ideia e primeira versão: commit 0b3c462, do Robson. */
+static bool laco_ativo, laco_somar;
+static int laco_x0, laco_y0, laco_x1, laco_y1;
+
+static void laco_retangulo(int *x, int *y, int *l, int *a)
+{
+    *x = laco_x0 < laco_x1 ? laco_x0 : laco_x1;
+    *y = laco_y0 < laco_y1 ? laco_y0 : laco_y1;
+    *l = (laco_x0 < laco_x1 ? laco_x1 - laco_x0 : laco_x0 - laco_x1) + 1;
+    *a = (laco_y0 < laco_y1 ? laco_y1 - laco_y0 : laco_y0 - laco_y1) + 1;
+}
+
+static void sujar_laco(void)
+{
+    int x, y, l, a;
+    laco_retangulo(&x, &y, &l, &a);
+    gui_redesenhar(x - 1, y - 1, l + 2, a + 2);
+}
+
+/* Destaque dos ícones marcados e o laço, por cima do fundo e por baixo das
+ * janelas (o laço é da área de trabalho). */
+static void desenhar_selecao(void)
+{
+    suave_t sv = { tela.px, tela.larg, tela.cx0, tela.cy0, tela.cx1, tela.cy1 };
+    uint32_t cor = tema->filete ? tema->filete : 0x2FB866;
+    for (int i = 0; i < area_qtd_icones(); i++) {
+        if (!area_icone_selecionado(i)) continue;
+        int x, y, l, a;
+        area_icone_retangulo(i, &x, &y, &l, &a);
+        suave_ret(&sv, x, y - 4, l, a + 2, 10, cor, cor, 80);
+        suave_contorno(&sv, x, y - 4, l, a + 2, 10, cor, 200);
+    }
+    if (!laco_ativo) return;
+    int x, y, l, a;
+    laco_retangulo(&x, &y, &l, &a);
+    suave_ret(&sv, x, y, l, a, 3, cor, cor, 64);
+    suave_contorno(&sv, x, y, l, a, 3, cor, 230);
+}
+
+static void tratar_laco(evento_mouse_t *m)
+{
+    sujar_laco();
+    if (m->botoes & BOTAO_ESQUERDO) {
+        laco_x1 = m->x;
+        laco_y1 = m->y < BARRA_SUPERIOR ? BARRA_SUPERIOR : m->y;
+        sujar_laco();
+        return;
+    }
+    laco_ativo = false;
+    int x, y, l, a;
+    laco_retangulo(&x, &y, &l, &a);
+    if (l > 4 || a > 4) area_selecionar(x, y, l, a, laco_somar);
+    klog("[GUI] laco: (%d,%d) %dx%d, %d icones marcados\n", x, y, l, a, area_qtd_selecionados());
+    gui_redesenhar(0, 0, (int)video_largura(), (int)video_altura());
+}
+
 static void tratar_mouse(evento_mouse_t *m)
 {
+    if (laco_ativo) { tratar_laco(m); return; }
     bool apertou = (m->mudaram & m->botoes) != 0;
     bool soltou = (m->mudaram & ~m->botoes) != 0;
 
@@ -1297,6 +1374,24 @@ static void tratar_mouse(evento_mouse_t *m)
             ult_clique_alvo = ic >= 0 ? 1000 + ic : -999;
             ult_clique_tique = agora;
             if (duplo && (m->mudaram & BOTAO_ESQUERDO)) { area_icone_abrir(ic); ult_clique_alvo = -999; }
+            if (m->mudaram & BOTAO_ESQUERDO) {
+                bool shift = (teclado_modificadores() & MOD_SHIFT) != 0;
+                if (ic >= 0) {
+                    /* Um clique marca só este ícone (com Shift, soma). */
+                    if (!area_icone_selecionado(ic) || !shift) {
+                        int ix, iy, il, ia;
+                        area_icone_retangulo(ic, &ix, &iy, &il, &ia);
+                        area_selecionar(ix + il / 2, iy + ia / 2, 1, 1, shift);
+                        gui_redesenhar(0, 0, (int)video_largura(), (int)video_altura());
+                    }
+                } else {
+                    if (!shift && area_limpar_selecao()) gui_redesenhar(0, 0, (int)video_largura(), (int)video_altura());
+                    laco_ativo = true;
+                    laco_somar = shift;
+                    laco_x0 = laco_x1 = m->x;
+                    laco_y0 = laco_y1 = m->y;
+                }
+            }
             if (ic >= 0 && (m->mudaram & BOTAO_DIREITO)) abrir_ctx(ic, m->x, m->y);
             else if (m->mudaram & BOTAO_DIREITO) abrir_ctx_area(m->x, m->y);
             captura = -1;
