@@ -335,7 +335,7 @@ static void abrir_item(int i)
         argv[0] = nomes[i]; argv[1] = NULL;
         pid = executar(c, argv);
         registrar("arquivos: executando %s (pid %d)", c, pid);
-    } else if (tem_extensao(nomes[i], ".png|.jpg|.jpeg|.gif|.webp|.bmp")) {   /* H87 */
+    } else if (tem_extensao(nomes[i], ".png|.jpg|.jpeg|.gif|.webp|.bmp|.sgi")) {   /* H87 */
         argv[0] = "visualizador"; argv[1] = c; argv[2] = NULL;
         pid = executar("/bin/visualizador", argv);
         registrar("arquivos: abrindo no visualizador %s (pid %d)", c, pid);
@@ -717,7 +717,7 @@ static void menu_de_contexto(int x, int y)
         bool arquivo = tipos[lista.sel] != TIPO_PASTA && tipos[lista.sel] != TIPO_PROGRAMA;
         const char *prog = arquivo ? programa_para(n) : NULL;
         const char *primeiro = !prog ? "Abrir"
-            : tem_extensao(n, ".png|.jpg|.jpeg|.gif|.webp|.bmp") ? "Abrir no Visualizador"   /* H87 */
+            : tem_extensao(n, ".png|.jpg|.jpeg|.gif|.webp|.bmp|.sgi") ? "Abrir no Visualizador"   /* H87 */
             : tem_extensao(n, ".m4a") ? "Abrir na Música"
             : tem_extensao(n, ".zip") ? "Extrair..."
             : compara_texto(prog, "/bin/tocador") == 0 ? "Abrir no Tocador"

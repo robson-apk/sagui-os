@@ -1,4 +1,4 @@
-/* visualizador [imagem] - mostra imagens PNG, JPEG, GIF, WebP e BMP (H87).
+/* visualizador [imagem] - mostra imagens PNG, JPEG, GIF, WebP, BMP (H87) e o .sgi dos fundos (H92).
  *
  * Os decodificadores são os do Cipó (userland/navegador/imagens.c, png.c,
  * jpeg.c e terceiros/libwebp-vp8), ligados a este programa pelo Makefile; o
@@ -53,7 +53,8 @@ static bool eh_imagem(const char *nome)
     for (; p[n] && n < 7; n++) e[n] = (char)(p[n] >= 'A' && p[n] <= 'Z' ? p[n] + 32 : p[n]);
     e[n] = 0;
     return !compara_texto(e, ".png") || !compara_texto(e, ".jpg") || !compara_texto(e, ".jpeg") ||
-           !compara_texto(e, ".gif") || !compara_texto(e, ".webp") || !compara_texto(e, ".bmp");
+           !compara_texto(e, ".gif") || !compara_texto(e, ".webp") || !compara_texto(e, ".bmp") ||
+           !compara_texto(e, ".sgi");
 }
 
 /* ---------------------------------------------------------------- BMP */
@@ -81,6 +82,37 @@ static bool bmp_ler(const uint8_t *d, unsigned n, uint32_t **saida, int *pl, int
         for (int x = 0; x < l; x++, s += bpp / 8)
             o[x] = 0xFF000000u | (uint32_t)s[2] << 16 | (uint32_t)s[1] << 8 | s[0];
     }
+    *saida = px; *pl = l; *pa = a;
+    return true;
+}
+
+/* ---------------------------------------------------------------- SGI1 (H92)
+ *
+ * O formato dos papéis de parede do SaguiOS (tools/mkfundo.py): "SGI1",
+ * largura e altura em 16 bits, paleta de 256 cores RGB e os índices em RLE
+ * (n < 128: n + 1 bytes copiados; n >= 128: o byte seguinte n - 125 vezes).
+ * É o mesmo que o kernel lê em area_trabalho.c para o fundo. */
+static bool sgi_ler(const uint8_t *d, unsigned n, uint32_t **saida, int *pl, int *pa)
+{
+    const unsigned cab = 8 + 768;
+    if (n <= cab || d[0] != 'S' || d[1] != 'G' || d[2] != 'I' || d[3] != '1') return false;
+    int l = d[4] | d[5] << 8, a = d[6] | d[7] << 8;
+    if (l <= 0 || a <= 0) return false;
+    uint32_t total = (uint32_t)l * (uint32_t)a, o = 0;
+    uint32_t *px = aloca((size_t)total * 4);
+    if (!px) return false;
+    unsigned i = cab;
+    while (i < n && o < total) {
+        unsigned k = d[i++];
+        if (k < 128) {
+            for (k++; k && i < n && o < total; k--) { const uint8_t *c = d + 8 + d[i++] * 3; px[o++] = 0xFF000000u | (uint32_t)c[0] << 16 | (uint32_t)c[1] << 8 | c[2]; }
+        } else if (i < n) {
+            const uint8_t *c = d + 8 + d[i++] * 3;
+            uint32_t cor = 0xFF000000u | (uint32_t)c[0] << 16 | (uint32_t)c[1] << 8 | c[2];
+            for (k -= 125; k && o < total; k--) px[o++] = cor;
+        }
+    }
+    if (o != total) { libera(px); return false; }
     *saida = px; *pl = l; *pa = a;
     return true;
 }
@@ -136,7 +168,7 @@ static void carregar(void)
     while (tem < inf.tamanho) { int k = ler(fd, d + tem, inf.tamanho - tem); if (k <= 0) break; tem += (unsigned)k; }
     fechar(fd);
     unsigned t0 = tempo_ms();
-    if (!bmp_ler(d, tem, &img, &il, &ia) && !imagem_decodificar(d, tem, &img, &il, &ia)) {
+    if (!bmp_ler(d, tem, &img, &il, &ia) && !sgi_ler(d, tem, &img, &il, &ia) && !imagem_decodificar(d, tem, &img, &il, &ia)) {
         img = NULL;
         copia_texto(erro, "formato não reconhecido ou arquivo estragado", sizeof erro);
     }
@@ -250,7 +282,7 @@ static void desenhar(void)
     } else {
         const char *msg = caminho[0] ? erro : "Nenhuma imagem. Clique em Abrir.";
         g_texto(j, (al - g_largura_texto(msg)) / 2, BARRA + aa / 2 - 8, msg, 0xE0E0E0);
-        formatar_texto(rod, sizeof rod, "%s", caminho[0] ? caminho : "PNG, JPEG, GIF, WebP e BMP");
+        formatar_texto(rod, sizeof rod, "%s", caminho[0] ? caminho : "PNG, JPEG, GIF, WebP, BMP e SGI");
     }
     g_retangulo(j, 0, j->alt - RODAPE, j->larg, RODAPE, 0xE6E9EC);
     g_retangulo(j, 0, j->alt - RODAPE, j->larg, 1, COR_BORDA);

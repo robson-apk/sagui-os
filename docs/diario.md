@@ -330,3 +330,15 @@ Log cronológico do que foi feito. Uma entrada por bloco de trabalho.
   - Delete manda os 3 para a lixeira com uma pergunta só.
 - `h23_arquivos` atualizado: a Nova pasta não abre mais o diálogo.
 - Suíte completa com o H91: 90 de 90 (o `b4_sagui3d` passou desta vez).
+
+## 2026-11-15 17:20
+
+### H92: o Visualizador abre o .sgi
+
+- O `.sgi` é o formato dos papéis de parede do SaguiOS (`tools/mkfundo.py`):
+  paleta de 256 cores e índices em RLE. Só o kernel o lia, para o fundo da
+  área de trabalho. O Visualizador e o Arquivos não o conheciam.
+- O Visualizador ganhou o `sgi_ler`, com a mesma conta do kernel, e o Arquivos
+  manda o `.sgi` para ele.
+- Teste novo `h92_sgi`, que passou: o `mata-atlantica.sgi` abre com 1024x768,
+  e a foto aparece (6 cores diferentes em 9 pontos do meio da janela).
