@@ -317,11 +317,46 @@ static void js_alerta(const char *t)
     copia_texto(status, msg, sizeof status);
 }
 
+/* H96: imagens já decodificadas nesta página. Quando um script muda o DOM,
+ * a página é lida de novo num motor novo, que pedia todas as imagens outra
+ * vez (2,8 s por vez no quanticbit.qzz.io, rolando). A chave é o conteúdo
+ * (tamanho + hash); falhas também ficam, para não tentar de novo. O motor
+ * libera os pixels que recebe, então sai sempre uma cópia. */
+#define IMGC_N   48
+#define IMGC_MAX (16u << 20)
+static struct { unsigned n, hash; uint32_t *px; int l, a; } imgc[IMGC_N];
+static int qtd_imgc; static unsigned imgc_total;
+
+static void imgc_limpar(void)
+{
+    for (int i = 0; i < qtd_imgc; i++) libera(imgc[i].px);
+    qtd_imgc = 0; imgc_total = 0;
+}
+
+static unsigned hash_bloco(const uint8_t *d, unsigned n) { unsigned x = 2166136261u; for (unsigned i = 0; i < n; i++) x = (x ^ d[i]) * 16777619u; return x; }
+
 static bool decodificar(const uint8_t *d, unsigned n, uint32_t **px, int *l, int *a)
 {
+    unsigned h = hash_bloco(d, n);
+    for (int i = 0; i < qtd_imgc; i++) {
+        if (imgc[i].n != n || imgc[i].hash != h) continue;
+        if (!imgc[i].px) return false;                    /* já falhou antes */
+        size_t t = (size_t)imgc[i].l * (size_t)imgc[i].a * 4;
+        uint32_t *c = aloca(t);
+        if (!c) return false;
+        memcpy(c, imgc[i].px, t);
+        *px = c; *l = imgc[i].l; *a = imgc[i].a;
+        return true;
+    }
     bool ok = imagem_decodificar(d, n, px, l, a);
     if (ok) registrar("navegador: imagem %dx%d", *l, *a);
     else registrar("navegador: imagem nao decodificou (%u bytes)", n);
+    if (qtd_imgc < IMGC_N) {
+        size_t t = ok ? (size_t)*l * (size_t)*a * 4 : 0;
+        uint32_t *c = NULL;
+        if (ok && imgc_total + t <= IMGC_MAX && (c = aloca(t))) memcpy(c, *px, t);
+        if (!ok || c) { imgc[qtd_imgc].n = n; imgc[qtd_imgc].hash = h; imgc[qtd_imgc].px = c; imgc[qtd_imgc].l = ok ? *l : 0; imgc[qtd_imgc].a = ok ? *a : 0; qtd_imgc++; imgc_total += (unsigned)t; }
+    }
     return ok;
 }
 
@@ -331,8 +366,20 @@ static const motor_ganchos_t ganchos_motor = { baixar_recurso, decodificar, tela
  * atual com o CSS em cache e devolve as caixas. Fica vivo para o
  * getComputedStyle até o próximo pedido ou a próxima página. (#6) */
 static motor_t *medidor;
+static char *medidor_html;     /* H96: o DOM que o medidor diagramou por último */
+static int medidor_n = -1;
 static int js_layout(const char *html, int n, int *caixas, int qtd)
 {
+    /* Scripts pedem medidas muitas vezes sem mudar o DOM (rolagem,
+     * IntersectionObserver): com o mesmo HTML, as caixas são as mesmas. */
+    if (medidor && medidor_html && n == medidor_n && memcmp(html, medidor_html, (size_t)n) == 0) {
+        motor_caixas(medidor, caixas, qtd);
+        return 1;
+    }
+    if (medidor_html) { libera(medidor_html); medidor_html = NULL; }
+    medidor_n = -1;
+    medidor_html = aloca((size_t)n + 1);
+    if (medidor_html) { memcpy(medidor_html, html, (size_t)n); medidor_n = n; }
     if (medidor) motor_fim(medidor);
     medidor = motor_novo(&ganchos_motor);
     if (!medidor) return 0;
@@ -615,11 +662,14 @@ static void carregar(const char *pedido, bool novo_no_historico, int rolagem_ini
     unsigned inicio = tempo_ms();
     /* a página anterior: motores, scripts, fontes da web, cache */
     if (medidor) { motor_fim(medidor); medidor = NULL; }
+    if (medidor_html) { libera(medidor_html); medidor_html = NULL; }
+    medidor_n = -1;
     if (motor) { motor_fim(motor); motor = NULL; }
     quadros_esquecer();
     motor_fontes_limpar();
     js_fim();
     cache_limpar();
+    imgc_limpar();
     copia_texto(url_atual, url, sizeof url_atual);
 
     texto_t pag = { 0, 0, 0 };
