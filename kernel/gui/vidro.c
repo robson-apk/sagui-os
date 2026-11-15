@@ -17,6 +17,7 @@
  * quantos pixels pular em cada ponta (um quarto de círculo de raio RAIO). */
 #include "vidro.h"
 #include "memoria.h"
+#include "suave.h"
 
 
 static uint32_t *buf;            /* linhas desfocadas (largura da tela + margem) x altura máxima */
@@ -75,6 +76,17 @@ int vidro_cobertura(int i, int j, int x, int y, int l, int a, int cantos)
     return canto[lin][col];
 }
 
+/* Cobertura com raio qualquer (H88b, a doca usa raio maior): o raio 8 usa a
+ * tabela; os outros contam 4 x 4 amostras (suave.h). */
+static int cobertura_r(int i, int j, int x, int y, int l, int a, int cantos, int r)
+{
+    if (r == VIDRO_CANTO) return vidro_cobertura(i, j, x, y, l, a, cantos);
+    int li = i - x, lj = j - y;
+    if (lj < r && !(cantos & CANTOS_EM_CIMA)) return 256;
+    if (lj >= a - r && !(cantos & CANTOS_EMBAIXO)) return 256;
+    return suave_amostras_ret(li, lj, l, a, r) * 16;
+}
+
 int vidro_canto(int r)
 {
     int n = 0;
@@ -96,6 +108,13 @@ static inline uint32_t brilho(uint32_t c, int j, int y, int a)
 
 void vidro_pintar(superficie_t *s, int x, int y, int l, int a, uint32_t tinta, int k, int cantos)
 {
+    vidro_pintar_r(s, x, y, l, a, tinta, k, cantos, VIDRO_CANTO);
+}
+
+void vidro_pintar_r(superficie_t *s, int x, int y, int l, int a, uint32_t tinta, int k, int cantos, int raio)
+{
+    if (2 * raio > a) raio = a / 2;
+    if (2 * raio > l) raio = l / 2;
     int x0 = x < s->cx0 ? s->cx0 : x, y0 = y < s->cy0 ? s->cy0 : y;
     int x1 = x + l > s->cx1 ? s->cx1 : x + l, y1 = y + a > s->cy1 ? s->cy1 : y + a;
     if (x0 >= x1 || y0 >= y1) return;
@@ -104,7 +123,7 @@ void vidro_pintar(superficie_t *s, int x, int y, int l, int a, uint32_t tinta, i
         for (int j = y0; j < y1; j++) {
             uint32_t *p = s->px + j * s->larg;
             for (int i = x0; i < x1; i++) {
-                int cob = vidro_cobertura(i, j, x, y, l, a, cantos);
+                int cob = cobertura_r(i, j, x, y, l, a, cantos, raio);
                 if (!cob) continue;
                 uint32_t c = brilho(vidro_efeitos ? mistura(p[i], tinta, k) : tinta, j, y, a);
                 p[i] = cob == 256 ? c : mistura(p[i], c, cob);
@@ -146,7 +165,7 @@ void vidro_pintar(superficie_t *s, int x, int y, int l, int a, uint32_t tinta, i
         }
         for (int yy = y0; yy < y1; yy++) {
             int jb = yy - sy0;
-            int cob = vidro_cobertura(i, yy, x, y, l, a, cantos);
+            int cob = cobertura_r(i, yy, x, y, l, a, cantos, raio);
             if (cob) {
                 uint32_t media = ((sr / (uint32_t)n) << 16) | ((sg / (uint32_t)n) << 8) | (sb / (uint32_t)n);
                 uint32_t c = brilho(mistura(media, tinta, k), yy, y, a);
@@ -164,22 +183,46 @@ void vidro_pintar(superficie_t *s, int x, int y, int l, int a, uint32_t tinta, i
  * leves (H88): sem ela, a janela era um retângulo chapado sobre o fundo. */
 void vidro_sombra(superficie_t *s, int x, int y, int l, int a)
 {
+    vidro_sombra_r(s, x, y, l, a, VIDRO_CANTO);
+}
+
+/* Raiz quadrada inteira (valores pequenos). */
+static int raiz(int v)
+{
+    int r = 0;
+    while ((r + 1) * (r + 1) <= v) r++;
+    return r;
+}
+
+/* H88b: a sombra segue o retângulo arredondado (antes era quadrada: nos
+ * cantos de fora da curva o fundo ficava claro, cercado de sombra, e a
+ * quina aparecia). Distância em oitavos de pixel até o retângulo de raio r,
+ * deslocado para baixo; os pixels todos cobertos pelo vidro são pulados. */
+void vidro_sombra_r(superficie_t *s, int x, int y, int l, int a, int r)
+{
     const int S = VIDRO_SOMBRA, desce = 4;
+    if (2 * r > a) r = a / 2;
+    if (2 * r > l) r = l / 2;
     int bx0 = x - S, by0 = y - S + desce, bx1 = x + l + S, by1 = y + a + S + desce;
     int x0 = bx0 < s->cx0 ? s->cx0 : bx0, y0 = by0 < s->cy0 ? s->cy0 : by0;
     int x1 = bx1 > s->cx1 ? s->cx1 : bx1, y1 = by1 > s->cy1 ? s->cy1 : by1;
+    /* retângulo interno (sem o raio), em oitavos, já deslocado */
+    int ix0 = (x + r) * 8, ix1 = (x + l - r) * 8, iy0 = (y + desce + r) * 8, iy1 = (y + desce + a - r) * 8;
     for (int j = y0; j < y1; j++) {
-        /* Distância vertical até a janela (deslocada para baixo). */
-        int dy = j < y + desce ? y + desce - j : (j >= y + a + desce ? j - (y + a + desce) + 1 : 0);
         uint32_t *p = s->px + j * s->larg;
+        int py = j * 8 + 4;
+        int dy = py < iy0 ? iy0 - py : (py > iy1 ? py - iy1 : 0);
         for (int i = x0; i < x1; i++) {
-            if (i >= x && i < x + l && j >= y && j < y + a) { i = x + l - 1; continue; }   /* debaixo da janela: nada */
-            int dx = i < x ? x - i : (i >= x + l ? i - (x + l) + 1 : 0);
-            int d = dx > dy ? dx : dy;
-            if (dx && dy) d = (dx + dy) * 3 / 4 > d ? (dx + dy) * 3 / 4 : d;   /* cantos mais suaves */
-            if (d >= S) continue;
-            int f = S - d;                         /* 1..S */
-            p[i] = escurecer(p[i], f * f * 90 / (S * S));
+            if (i >= x + r && i < x + l - r && j >= y && j < y + a) { i = x + l - r - 1; continue; }
+            if (i >= x && i < x + l && j >= y && j < y + a &&
+                suave_amostras_ret(i - x, j - y, l, a, r) == 16) continue;   /* debaixo do vidro */
+            int px = i * 8 + 4;
+            int dx = px < ix0 ? ix0 - px : (px > ix1 ? px - ix1 : 0);
+            int d = raiz(dx * dx + dy * dy) - r * 8;            /* oitavos fora da borda */
+            if (d < 0) d = 0;
+            if (d >= S * 8) continue;
+            int f = S * 8 - d;
+            p[i] = escurecer(p[i], f * f * 90 / (S * S * 64));
         }
     }
 }

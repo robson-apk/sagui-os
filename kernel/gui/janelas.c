@@ -230,6 +230,7 @@ static const fixo_t fixos[] = {
 #define QTD_FIXOS (int)(sizeof fixos / sizeof fixos[0])
 #define DOCA_CELULA 52
 #define DOCA_A      56
+#define DOCA_RAIO   18     /* H88b: cantos bem redondos */
 #define MAX_DOCA    14
 
 typedef struct {
@@ -309,14 +310,14 @@ static int doca_item_em(int x, int y)
 static void desenhar_doca(void)
 {
     if (!doca_ligada) return;
-    vidro_sombra(&tela, doca_x, doca_y, doca_l, DOCA_A);
-    vidro_pintar(&tela, doca_x, doca_y, doca_l, DOCA_A, tema->doca, tema->k_doca, CANTOS_EM_CIMA | CANTOS_EMBAIXO);
+    vidro_sombra_r(&tela, doca_x, doca_y, doca_l, DOCA_A, DOCA_RAIO);
+    vidro_pintar_r(&tela, doca_x, doca_y, doca_l, DOCA_A, tema->doca, tema->k_doca, CANTOS_EM_CIMA | CANTOS_EMBAIXO, DOCA_RAIO);
     janela_t *f = focada();
     for (int i = 0; i < qtd_doca; i++) {
         int cx = doca_x + 8 + i * DOCA_CELULA;
         bool aberto = doca[i].janela >= 0;
         if (aberto && f && &janelas[doca[i].janela] == f)
-            vidro_pintar(&tela, cx + 2, doca_y + 4, DOCA_CELULA - 4, DOCA_A - 8, tema->doca_destaque, 50, CANTOS_EM_CIMA | CANTOS_EMBAIXO);
+            vidro_pintar_r(&tela, cx + 2, doca_y + 4, DOCA_CELULA - 4, DOCA_A - 8, tema->doca_destaque, 50, CANTOS_EM_CIMA | CANTOS_EMBAIXO, 12);
         sup_icone(&tela, cx + (DOCA_CELULA - ICONE_PEQUENO) / 2, doca_y + 4, doca[i].px, ICONE_PEQUENO);
         if (aberto) sup_retangulo(&tela, cx + DOCA_CELULA / 2 - 3, doca_y + DOCA_A - 10, 6, 3, tema->doca_ponto);
         if (i == QTD_FIXOS - 1 && qtd_doca > QTD_FIXOS)
@@ -327,8 +328,8 @@ static void desenhar_doca(void)
         char nome[40];
         txt_copia_n(nome, doca[doca_sob].nome, sizeof nome);
         int l = texto_largura(nome) + 16, x = doca_x + 8 + doca_sob * DOCA_CELULA + DOCA_CELULA / 2 - l / 2;
-        vidro_pintar(&tela, x, doca_y - 28, l, 22, tema->doca, tema->k_doca + 40 > 255 ? 255 : tema->k_doca + 40,
-                     CANTOS_EM_CIMA | CANTOS_EMBAIXO);
+        vidro_pintar_r(&tela, x, doca_y - 28, l, 22, tema->doca, tema->k_doca + 40 > 255 ? 255 : tema->k_doca + 40,
+                       CANTOS_EM_CIMA | CANTOS_EMBAIXO, 11);
         sup_texto(&tela, x + 8, doca_y - 25, nome, tema->doca_texto);
     }
 }
