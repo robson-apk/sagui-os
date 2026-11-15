@@ -434,10 +434,53 @@ def ui_relogio_rede(t):
     ui_rede(t)
 
 
+# ---- H89: ícones do menu Iniciar ----
+
+def lupa(t):
+    """Busca: uma lupa branca (o menu pinta por cima do vidro escuro)."""
+    t.traco([(27 + 12.5 * math.cos(a), 27 + 12.5 * math.sin(a)) for a in (k * 2 * math.pi / 40 for k in range(41))], 6, 0xFFFFFF)
+    t.traco([(40, 40), (54, 54)], 8, 0xFFFFFF)
+
+
+def chuva(t):
+    """Chuva de letras: colunas verdes caindo numa tela preta."""
+    t.ret(6, 6, 58, 58, 8, vertical(0x16201A, 0x050806, 6, 58))
+    for k, (x, y0, y1) in enumerate([(16, 12, 40), (26, 18, 52), (36, 10, 30), (46, 20, 48)]):
+        t.traco([(x, y0), (x, y1)], 3.4, 0x2FD566, 0.55)
+        t.disco(x, y1, 2.6, 0xB8FFD0)
+
+
+def triangulos(t):
+    """Triângulos 3D: dois triângulos coloridos sobrepostos."""
+    t.poligono([(8, 52), (30, 10), (52, 52)], vertical(0x5AA9F0, 0x1F5FB8, 10, 52))
+    t.poligono([(24, 56), (42, 22), (58, 56)], vertical(0xFFB547, 0xE06A1B, 22, 56), 0.92)
+    t.poligono([(30, 10), (36, 21), (24, 21)], 0xFFFFFF, 0.35)
+
+
+def codigo(t):
+    """Sagui Code: chaves de código num cartão roxo."""
+    t.ret(5, 8, 59, 56, 10, vertical(0x8A6CF0, 0x4B2BB8, 8, 56))
+    t.traco([(24, 20), (14, 32), (24, 44)], 4.2, 0xFFFFFF)
+    t.traco([(40, 20), (50, 32), (40, 44)], 4.2, 0xFFFFFF)
+    t.traco([(35, 18), (29, 46)], 3.4, 0xFFE07A)
+
+
+def componentes(t):
+    """Componentes: peças de interface (botão, caixa e marcação)."""
+    t.ret(5, 8, 59, 56, 8, vertical(0xF4F6F8, 0xD6DDE3, 8, 56))
+    t.ret(11, 14, 53, 24, 4, 0x0B7A3E)
+    t.ret(11, 29, 53, 39, 3, 0xFFFFFF)
+    t.ret(11, 29, 53, 39, 3, 0x8896A4, 0.25)
+    t.ret(11, 44, 21, 52, 2, 0x5AA9F0)
+    t.traco([(25, 48), (45, 48)], 3, 0x8896A4)
+
+
 ICONES = [("arquivos", arquivos), ("terminal", terminal), ("editor", editor), ("calculadora", calculadora),
           ("banana", banana), ("sagui3d", sagui3d), ("sobre", sobre), ("pendrive", pendrive),
           ("configuracoes", configuracoes), ("cipo", cipo), ("instalado", instalado),
-          ("monitor", monitor), ("visualizador", visualizador), ("musica", musica), ("energia", energia)]
+          ("monitor", monitor), ("visualizador", visualizador), ("musica", musica), ("energia", energia),
+          ("lupa", lupa), ("chuva", chuva), ("triangulos", triangulos), ("codigo", codigo),
+          ("componentes", componentes)]
 TAMANHOS = [(64, ""), (40, "_40"), (20, "_20")]
 # Os programas recebem só o tamanho 20 (libsagui, icones.h): os ícones dos
 # programas e os da interface, com o prefixo icone_.

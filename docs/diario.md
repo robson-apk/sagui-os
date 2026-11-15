@@ -250,3 +250,33 @@ Log cronológico do que foi feito. Uma entrada por bloco de trabalho.
   passou de novo, com h38, h36, h23, h87 e h81. Teste novo `h88_visual`, que
   mede nos pixels: canto de cima suavizado, canto de baixo redondo, ícones nas
   7 abas e nos 13 itens do menu, botões de efeitos.
+
+## 2026-11-15 13:20
+
+### H88b e H89: doca redonda e menu Iniciar
+
+- Doca: a sombra era quadrada. Fora da curva o fundo ficava claro, cercado de
+  sombra, e a quina aparecia. Agora `vidro_sombra_r` e `vidro_pintar_r`
+  recebem o raio, a doca usa raio 18, e a sombra das janelas também ficou
+  arredondada.
+- Rede: no QEMU do Mac, o DNS falhava ("sem rede ou sem resposta"), mas o
+  ping no roteador 10.0.2.2 respondia. A causa está fora do SaguiOS: o DNS
+  virtual do QEMU (10.0.2.3) repassa as consultas para o `/etc/resolv.conf`
+  do Mac (1.1.1.1), e o 1.1.1.1 não responde nessa rede (o `dig` do próprio
+  Mac dá tempo esgotado). Com os mesmos parâmetros no X79, o Google abre
+  (200, TLS conferido).
+- Laço de seleção translúcido na área de trabalho: ele existiu no commit
+  0b3c462, nos ramos `area-lixeira`, `cipo-web` e `js-tamanho`, que são do
+  código antigo. Nunca entrou no main. O H88 não removeu nada.
+- Menu Iniciar com todos os programas, busca e categorias (D050). Teste novo
+  `h89_menu_iniciar`: abre o menu, busca "musica", Enter abre a Música,
+  categoria Jogos, clique na Banana e Esc fecha. O `h88_visual` agora confere
+  ícones nas 17 células da grade, com 3 células vazias como controle.
+- Suíte completa: 84/85. Falhou o `b4_sagui3d` ("a terceira banana abre a
+  porteira"). Rodadas avulsas: a imagem nova passou 9 de 14, e a do H88
+  (bd59cd2) passou 8 de 8, alternando as duas. Os quadros por segundo do jogo
+  são parecidos (51 contra 50 a 57), e o tempo do quadro inteiro também (27 ms
+  contra 25 ms). Na falha, o sagui passa da porteira sem comer a terceira
+  banana. A causa ainda não foi achada; fica em aberto. A raiz quadrada da
+  sombra nova era um laço de até cerca de 200 passos por pixel; virou bit a bit
+  e só roda nos cantos, mas isso não resolveu.

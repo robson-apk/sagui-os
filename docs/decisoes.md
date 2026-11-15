@@ -1636,3 +1636,37 @@ Configurações não mudaram. O menu do sagui passou a ter linhas de 30 pixels,
 então os testes que clicam nele foram ajustados. O `-Wno-missing-field-initializers`
 entra no `UCFLAGS` porque `botao_t` ganhou campos no fim: quem escreve
 `{ x, y, l, a, texto }` deixa o resto em zero, que é o certo.
+
+## D050 - Menu Iniciar com todos os programas, busca e categorias (H89)
+
+**Contexto.** O menu do sagui listava 13 programas numa coluna. Programas que
+existem em `/bin` e abrem janela (Chuva de letras, Triângulos 3D, Componentes,
+Sagui Code) não apareciam em lugar nenhum da interface. O pedido foi um menu
+como o dos outros sistemas: todos os programas, barra de pesquisa e
+categorias.
+
+**Decisão.**
+- O menu continua no kernel (`kernel/gui/janelas.c`), no mesmo botão do
+  sagui. Ele tem uma caixa de busca, uma fileira de categorias e uma grade de
+  5 x 4 ícones de 40 pixels, com o nome em até duas linhas. No rodapé ficam
+  Sobre e Desligar.
+- O catálogo (`catalogo[]`) dá a cada programa nome, caminho, categoria,
+  ícone e palavras extras para a busca ("navegador" acha o Cipó, "processos"
+  acha o Sagui Monitor). As categorias são Todos, Internet, Escritório, Mídia,
+  Jogos, Sistema, Programação e Instalados. Instalados só aparece quando há
+  programas no pendrive, que entram pelo `area_icone_nome`.
+- Enquanto o menu está aberto, o teclado vai para a busca e não para a
+  janela em foco. A busca ignora maiúsculas e acentos e compara texto Latin-1,
+  porque o kernel compila com `-fexec-charset=ISO-8859-1` e o teclado
+  entrega Latin-1. As setas escolhem, Enter abre e Esc fecha.
+- O Sagui Code roda dentro do Terminal (`terminal -e /bin/saguicode`). O
+  Vídeo fica fora do menu, porque precisa de um arquivo; ele continua abrindo
+  pelo Arquivos.
+- O vidro do menu ficou quase opaco (250 de 256). Com 238, o texto das
+  janelas de trás atrapalhava a leitura da grade.
+- Ícones novos no `tools/mkarte.py`: lupa, chuva, triângulos, código e
+  componentes.
+
+**Compatibilidade.** Os testes que clicavam em itens do menu antigo (`h74_h77`,
+`h78`, `h86`, `h88`) agora clicam na grade. O item k fica em
+`(28 + (k % 5) * 108 + 54, 134 + (k // 5) * 92 + 30)`.

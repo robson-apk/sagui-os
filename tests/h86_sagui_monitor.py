@@ -84,7 +84,7 @@ def main():
             time.sleep(0.2)
         time.sleep(0.5)
         m.captura("H86-menu")
-        m.clique(40, 24 + 4 + 4 + 8 * 30 + 14)   # H88: linha de 30
+        m.clique(28 + 2 * 108 + 54, 134 + 2 * 92 + 30)   # H89: grade do menu Iniciar, item 12
         fim = time.time() + 30
         while 'criada por' not in m.serial()[antes:] or '"Sagui Monitor"' not in m.serial()[antes:]:
             if time.time() > fim:

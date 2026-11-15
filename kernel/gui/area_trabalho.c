@@ -100,6 +100,8 @@ static const char *nome_icone(int i)
     return apelido && apelido[0] ? apelido : icones[i].nome;
 }
 
+const char *area_icone_nome(int i) { return nome_icone(i); }   /* H89: o menu Iniciar */
+
 /* Que tipo de ícone é (para o menu do botão direito): 0 do sistema,
  * 1 programa instalado no pendrive, 2 o pendrive. */
 int area_icone_tipo(int i)

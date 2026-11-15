@@ -98,18 +98,29 @@ def main():
         m.clique(c["x"] + 190 + 64, c["y"] + 340 + 14)                  # volta ao automático
         time.sleep(1)
 
-        # O menu do sagui: ícone de 20x20 em cada item (x de 17 a 37).
+        # O menu Iniciar (H89): ícone de 40x40 em cada célula da grade.
         m.clique(40, 12)
         esperar(m, "[GUI] menu aberto", 10)
         time.sleep(0.8)
         png = m.captura("H88-menu")
-        com_icone = 0
-        for i in range(13):
-            y = 24 + 4 + 4 + i * 30 + (9 if i >= 11 else 0) + 5 + 10
-            cores = {cor_do_pixel(png, x, y) for x in (21, 27, 33)}
-            if len(cores) > 1 or any(max(p) - min(p) > 40 for p in cores):
+        com_icone, contagem = 0, []
+        for k in range(17):
+            cx, cy = 28 + (k % 5) * 108 + 34, 134 + (k // 5) * 92 + 10
+            fundo = cor_do_pixel(png, cx - 30, cy - 6)          # canto da célula: fundo do menu
+            pontos = [cor_do_pixel(png, cx + u, cy + v) for u in range(2, 40, 3) for v in range(2, 40, 3)]
+            n = sum(distancia(p, fundo) > 40 for p in pontos)
+            contagem.append(n)
+            if n >= 12:                                         # ícones escuros (Terminal) também
                 com_icone += 1
-        verificar(com_icone >= 12, f"o menu tem ícones ({com_icone} de 13 itens)")
+        vazias = []                                             # controle: células sem programa
+        for k in (17, 18, 19):
+            cx, cy = 28 + (k % 5) * 108 + 34, 134 + (k // 5) * 92 + 10
+            fundo = cor_do_pixel(png, cx - 30, cy - 6)
+            vazias.append(sum(distancia(cor_do_pixel(png, cx + u, cy + v), fundo) > 40
+                              for u in range(2, 40, 3) for v in range(2, 40, 3)))
+        print(f"  pixels de ícone por célula: {contagem}; células vazias: {vazias}")
+        verificar(max(vazias) < 12, f"as células vazias não parecem ícone ({vazias})")
+        verificar(com_icone >= 16, f"o menu tem ícones ({com_icone} de 17 itens)")
         m.clique(600, 400)
         time.sleep(0.5)
 

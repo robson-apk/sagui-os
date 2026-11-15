@@ -189,8 +189,13 @@ void vidro_sombra(superficie_t *s, int x, int y, int l, int a)
 /* Raiz quadrada inteira (valores pequenos). */
 static int raiz(int v)
 {
-    int r = 0;
-    while ((r + 1) * (r + 1) <= v) r++;
+    int r = 0, b = 1 << 30;                     /* bit a bit: até 16 passos */
+    while (b > v) b >>= 2;
+    while (b) {
+        if (v >= r + b) { v -= r + b; r = (r >> 1) + b; }
+        else r >>= 1;
+        b >>= 2;
+    }
     return r;
 }
 
@@ -218,7 +223,7 @@ void vidro_sombra_r(superficie_t *s, int x, int y, int l, int a, int r)
                 suave_amostras_ret(i - x, j - y, l, a, r) == 16) continue;   /* debaixo do vidro */
             int px = i * 8 + 4;
             int dx = px < ix0 ? ix0 - px : (px > ix1 ? px - ix1 : 0);
-            int d = raiz(dx * dx + dy * dy) - r * 8;            /* oitavos fora da borda */
+            int d = (dx && dy ? raiz(dx * dx + dy * dy) : dx + dy) - r * 8;   /* oitavos fora da borda; raiz só nos cantos */
             if (d < 0) d = 0;
             if (d >= S * 8) continue;
             int f = S * 8 - d;
