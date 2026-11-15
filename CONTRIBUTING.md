@@ -42,8 +42,13 @@ sob a GPL 3 (a licença do projeto, em [`LICENSE`](LICENSE)).
 
 ## 3. Pull requests pequenos e testados
 
-- **Um assunto por pull request**. Coisas grandes: quebre em partes que dê
-  para revisar (por exemplo, "motor de JavaScript" e "Canvas" separados).
+- **Um assunto por pull request, pequeno**: como referência, até umas 500 linhas
+  de código mudadas (fora testes e dados gerados). Pull requests enormes não dão
+  para revisar e costumam ser fechados, com as ideias aproveitadas aos poucos.
+- Coisas grandes: abra uma **issue** antes, combine o plano e mande em partes
+  (por exemplo, "motor de JavaScript" e "Canvas" separados).
+- Não troque as imagens da pasta `entrega/` (o mantenedor gera) nem mude a ABI
+  das chamadas de sistema sem combinar antes.
 - Baseie o trabalho no **`main` atual** (a versão 2.0 mudou muita coisa desde
   a 1.0).
 - `make` precisa compilar e `python3 tests/rodar_todos.py` precisa passar.
@@ -59,6 +64,24 @@ testes e passa um resumo para o Eli decidir. Às vezes, em vez de juntar o pull
 request como está, a ideia é trazida para o código atual com o seu nome como
 coautor (`Co-authored-by`), o que aparece no seu perfil do GitHub como
 contribuição.
+
+### Revisão de segurança
+
+Antes de qualquer outra coisa, todo pull request passa por uma revisão de
+segurança:
+
+- **workflows do GitHub Actions** (`.github/`): só permissão de leitura, nenhum
+  `pull_request_target`, nenhum segredo, só ações oficiais, nada de baixar e
+  rodar scripts da internet;
+- **o que roda no build e nos testes** (Makefile, `tools/`, `tests/`): nada de
+  rede inesperada, comandos estranhos ou arquivos escritos fora do projeto;
+- **nada de binários prontos** nem arquivos opacos sem explicação;
+- **o núcleo** não pode gravar em discos sem a confirmação de quem usa, nem
+  afrouxar a proteção da memória dos programas;
+- **nenhum segredo ou dado pessoal**, e licenças em ordem (`terceiros/`).
+
+Os workflows de quem contribui pela primeira vez só rodam depois da aprovação
+do mantenedor.
 
 ## 5. Ideias e problemas
 

@@ -89,6 +89,19 @@ static int atual_aba;
 static int suj_l0 = MAX_LINS, suj_l1 = -1;
 static bool abas_sujas = true;
 static char area_copia[MAX_COLS * MAX_LINS + MAX_LINS];
+
+/* Cola o que está na área de cópia do sistema (pode ter vindo do Editor,
+ * do Cipó...). As quebras de linha viram Enter para o shell. */
+static void colar(aba_t *a)
+{
+    static char t[8192];
+    int n = area_copia_ler(t, sizeof t - 1);
+    if (n <= 0) return;
+    if (n > (int)sizeof t - 1) n = (int)sizeof t - 1;
+    for (int i = 0; i < n; i++) if (t[i] == '\r') t[i] = ' ';
+    escrever_tudo(a->entrada, t, (unsigned)n);
+    registrar("terminal: colado (%d letras)", n);
+}
 static int sel_ini_l = -1, sel_ini_c, sel_fim_l, sel_fim_c;
 
 /* ------------------------------------------------------------ cores */
@@ -709,6 +722,7 @@ static void copiar_selecao(aba_t *a)
         if (l != fim / COLS) area_copia[k++] = '\n';
     }
     area_copia[k] = 0;
+    area_copia_gravar(area_copia, (unsigned)k);   /* para colar em outros programas */
     registrar("terminal: copiado (%d letras)", k);
 }
 
@@ -857,6 +871,10 @@ int principal(int argc, char **argv)
                 }
                 if (a->olhando) { a->olhando = 0; sujar_tudo(); }
                 if (a->terminou) { fechar_aba(atual_aba); continue; }   /* qualquer tecla fecha */
+                /* Ctrl+Shift+C copia e Ctrl+Shift+V cola (sem o Shift, o Ctrl+C
+                 * interrompe e o Ctrl+V vai para o programa, como nos terminais). */
+                if ((e.modificadores & 1) && e.tecla == 3) { if (sel_ini_l >= 0) copiar_selecao(a); continue; }
+                if ((e.modificadores & 1) && e.tecla == 22) { colar(a); continue; }
                 if (e.tecla == 3 && interromper(a)) { sujar_tudo(); continue; }
                 enviar_tecla(a, e.tecla);
             } else if (e.tipo == EV_CLIQUE && e.y < ABAS_A) {
@@ -870,10 +888,11 @@ int principal(int argc, char **argv)
                     if (nova >= 0) { atual_aba = nova; abas_sujas = true; sujar_tudo(); }
                 }
             } else if (e.tipo == EV_CLIQUE && (e.botoes & 2)) {   /* botão direito: menu (H81); "Colar" é o primeiro */
-                jan_menu(j, e.x, e.y, "Colar|Interromper (Ctrl+C)|Limpar a tela (Ctrl+L)|Nova aba|Fechar esta aba");
+                jan_menu(j, e.x, e.y, "Colar (Ctrl+Shift+V)|Interromper (Ctrl+C)|Limpar a tela (Ctrl+L)|Nova aba|Fechar esta aba|Copiar a seleção (Ctrl+Shift+C)");
             } else if (e.tipo == EV_MENU) {
                 registrar("terminal: menu %u", e.tecla);
-                if (e.tecla == 0 && area_copia[0]) escrever_tudo(a->entrada, area_copia, (unsigned)tam_texto(area_copia));
+                if (e.tecla == 0) colar(a);
+                else if (e.tecla == 5 && sel_ini_l >= 0) copiar_selecao(a);
                 else if (e.tecla == 1) { if (!interromper(a)) enviar_tecla(a, 3); sujar_tudo(); }
                 else if (e.tecla == 2) enviar_tecla(a, 12);
                 else if (e.tecla == 3) { int nova = abrir_aba(); if (nova >= 0) { atual_aba = nova; abas_sujas = true; sujar_tudo(); } }

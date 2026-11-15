@@ -91,9 +91,16 @@ VISUALIZADOR_OBJ := $(B)/nav/userland/visualizador/visualizador.o $(IMAGENS_OBJ)
 MUSICA_OBJ := $(B)/nav/userland/musica/musica.o $(B)/nav/userland/video/mp4.o $(B)/nav/userland/video/aac.o
 UNZIP_OBJ := $(B)/nav/userland/unzip/unzip.o $(B)/nav/userland/navegador/descompactar.o
 PROGRAMAS += $(B)/userland/bin/visualizador $(B)/userland/bin/musica $(B)/userland/bin/unzip
+# O decodificador de MP3 do Tocador (H86), escrito do zero (D047), e o
+# mp3info, o comando que o testa. (A janela do Tocador usa o mesmo mp3.o.)
+MP3INFO_OBJ := $(B)/userland/tocador/mp3info.o $(B)/userland/tocador/mp3.o
+PROGRAMAS += $(B)/userland/bin/mp3info
 # O Sagui Code (fase 8).
 SAGUICODE_OBJ := $(patsubst userland/saguicode/%.c,$(B)/userland/saguicode/%.o,$(wildcard userland/saguicode/*.c))
 PROGRAMAS += $(B)/userland/bin/saguicode
+# O Tocador de músicas (pedido do Eli): a janela e, quando chegar, o decodificador de MP3.
+TOCADOR_OBJ := $(B)/userland/tocador/tocador.o $(B)/userland/tocador/mp3.o
+PROGRAMAS += $(B)/userland/bin/tocador
 # O compilador C do SaguiOS (fase 7 da versão 2.0): o comando cc, a libsagui
 # num objeto só (o que o cc liga aos programas) e os cabeçalhos que ele lê.
 COMPILADOR_OBJ := $(patsubst userland/compilador/%.c,$(B)/userland/compilador/%.o,$(wildcard userland/compilador/*.c))
@@ -241,6 +248,22 @@ $(B)/userland/bin/unzip: $(UNZIP_OBJ) $(LIBSAGUI_OBJ) userland/programa.ld
 # /bin/cipo é o mesmo programa com o nome novo (H82).
 $(B)/userland/bin/cipo: $(B)/userland/bin/navegador
 	cp $< $@
+
+# -mstackrealign: o MP3 faz contas em float com SSE2, e o gcc pode guardar
+# valores alinhados em 16 bytes na pilha (como no navegador).
+$(B)/userland/tocador/%.o: userland/tocador/%.c $(wildcard userland/tocador/*.h) $(USER_HDR)
+	@mkdir -p $(dir $@)
+	$(CC) $(UCFLAGS) -mstackrealign -c -o $@ $<
+
+$(B)/userland/bin/tocador: $(TOCADOR_OBJ) $(LIBSAGUI_OBJ) userland/programa.ld
+	@mkdir -p $(dir $@)
+	$(LD) $(ULDFLAGS) -o $@.elf $(TOCADOR_OBJ) $(LIBSAGUI_OBJ)
+	objcopy --strip-all $@.elf $@
+
+$(B)/userland/bin/mp3info: $(MP3INFO_OBJ) $(LIBSAGUI_OBJ) userland/programa.ld
+	@mkdir -p $(dir $@)
+	$(LD) $(ULDFLAGS) -o $@.elf $(MP3INFO_OBJ) $(LIBSAGUI_OBJ)
+	objcopy --strip-all $@.elf $@
 
 $(B)/userland/saguicode/%.o: userland/saguicode/%.c userland/saguicode/ia.h $(USER_HDR)
 	@mkdir -p $(dir $@)

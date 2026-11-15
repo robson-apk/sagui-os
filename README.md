@@ -9,10 +9,12 @@ para PCs x86 de 32 bits, rodando de verdade num notebook de 2011.
 
 Feito por Claude (Anthropic) para o projeto do **Eli Rigobeli**.
 
-`562 KB` · `sem GRUB` · `sem libc` · `sem código de outros sistemas` · `suíte de testes automáticos`
+`versão 2.1` · `sem GRUB` · `sem libc` · `núcleo sem código de outros sistemas` · `83 testes automáticos`
 
-<img src="docs/capturas/B4-3-fase1-corredor.png" width="49%" alt="Sagui 3D, o jogo em primeira pessoa do SaguiOS">
-<img src="docs/capturas/H28-tres-programas.png" width="49%" alt="Área de trabalho do SaguiOS com três programas abertos">
+<img src="docs/v2/capturas/H81-7-menu-titulo.png" width="49%" alt="Área de trabalho do SaguiOS 2.1 com o fundo da Mata Atlântica e o menu da barra de título">
+<img src="docs/v2/capturas/H63-1-wikipedia.png" width="49%" alt="O navegador Cipó mostrando a Wikipédia">
+<img src="docs/v2/capturas/H87-2-tocador.png" width="49%" alt="O Tocador de músicas (WAV e MP3)">
+<img src="docs/v2/capturas/H83-3-fetch.png" width="49%" alt="O Terminal com o fetch, o grep e o uname">
 
 </div>
 
@@ -41,8 +43,9 @@ Acompanhe pelo painel [`dashboard/v2/`](dashboard/v2/index.html). Quer contribui
 
 O SaguiOS é um sistema operacional completo, do carregador de boot ao jogo em 3D, escrito
 inteiro neste projeto, seguindo a especificação em [`prd.md`](prd.md). Ele dá boot por um
-pendrive num **Lenovo G470** (2011), no VirtualBox e no QEMU, e cabe em **575.488 bytes**
-(39% de um disquete de 1,44 MB).
+pendrive num **Lenovo G470** (2011), no VirtualBox e no QEMU. A versão 1.0 cabia em **575.488
+bytes** (39% de um disquete de 1,44 MB); a 2.1, com o navegador, as fontes de letra e o fundo
+da Mata Atlântica, tem cerca de **6 MB**.
 
 Tudo o que vai dentro da imagem foi escrito aqui: carregador de boot em dois estágios, kernel,
 drivers (teclado ABNT2, touchpad, vídeo VESA, USB 2.0, pendrive), sistema de arquivos FAT32,
@@ -94,11 +97,11 @@ coluna com uma "fresta" que estreita a cada passagem, perspectiva sem olho de pe
 arquivos de texto, com texturas e personagens desenhados no próprio código. Explicação completa
 na seção "Sagui 3D" de [`docs/decisoes.md`](docs/decisoes.md).
 
-## Números
+## Números (da versão 1.0)
 
 | | |
 | --- | --- |
-| Imagem de boot | **575.488 bytes** úteis (39% de 1,44 MB) |
+| Imagem de boot | **575.488 bytes** úteis (39% de 1,44 MB); na 2.1, cerca de 6 MB |
 | Linhas de código | boot 903, kernel 9.614, programas 6.317 (mais 3.591 de ferramentas e testes) |
 | Programas | 31 em `/bin`: shell, comandos e 8 programas gráficos |
 | Testes automáticos | uma suíte com testes no QEMU e no host; o CI roda todos |

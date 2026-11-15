@@ -18,8 +18,17 @@ int principal(int argc, char **argv)
     info_arquivo(argv[1], &inf);
     unsigned char *dados = aloca(inf.tamanho + 1);
     if (!dados) { imprimir_em(ERROS, "tocar: arquivo grande demais\n"); return 1; }
-    int n = ler(fd, dados, inf.tamanho);
+    /* Um ler() pode trazer menos que o pedido (o kernel entrega o arquivo em
+     * pedaços): lê em laço até o fim. Antes era um ler() só, e no G470 a
+     * música tocava só os primeiros segundos. */
+    int n = 0;
+    while ((unsigned)n < inf.tamanho) {
+        int r = ler(fd, dados + n, inf.tamanho - (unsigned)n);
+        if (r <= 0) break;
+        n += r;
+    }
     fechar(fd);
+    if ((unsigned)n < inf.tamanho) registrar("tocar: li %d de %u bytes", n, inf.tamanho);
     if (n < 44 || compara_texto_n((char *)dados, "RIFF", 4) != 0 || compara_texto_n((char *)dados + 8, "WAVE", 4) != 0) {
         imprimir_em(ERROS, "tocar: %s não é um arquivo WAV\n", argv[1]);
         return 1;
@@ -54,11 +63,15 @@ int principal(int argc, char **argv)
                                       : (short)(((int)dados[ini + (k) * bq + (c)] - 128) << 8))
     static short bloco[2 * 960];
     /* passo = taxa / 48000 em 16.16; 65536 / 48000 = 1024 / 750, que cabe em 32 bits. */
-    unsigned passo = taxa * 1024u / 750u, pos = 0;
+    /* A posição em 16.16 num inteiro de 64 bits: em 32 bits ela só ia até
+     * 65536 amostras (1,5 s a 44,1 kHz) e dava a volta (G470: a música
+     * parava). Somar e deslocar 64 bits não precisa da libgcc. */
+    unsigned passo = taxa * 1024u / 750u;
+    unsigned long long pos = 0;
     for (;;) {
         int q = 0;
         while (q < 960) {
-            unsigned k = pos >> 16, fr = pos & 0xFFFF;
+            unsigned k = (unsigned)(pos >> 16), fr = (unsigned)pos & 0xFFFF;
             if (k + 1 >= quadros) break;
             for (unsigned c = 0; c < 2; c++) {
                 unsigned origem = canais == 2 ? c : 0;

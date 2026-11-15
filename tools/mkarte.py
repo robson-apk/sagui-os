@@ -475,12 +475,21 @@ def componentes(t):
     t.traco([(25, 48), (45, 48)], 3, 0x8896A4)
 
 
+def tocador(t):
+    """O Tocador: um disco verde com uma nota musical amarela."""
+    t.disco(32, 32, 26, vertical(0x2EB872, 0x0E6E3C, 6, 58))
+    t.disco(32, 32, 26, 0xFFFFFF, 0.08)
+    t.disco(25, 43, 7, 0xFFDF4A, ry=5.5)                 # cabeça da nota
+    t.ret(30, 16, 33.5, 43, 0, 0xFFDF4A)                # haste
+    t.poligono([(33.5, 16), (44, 20), (44, 27), (33.5, 23)], 0xFFDF4A)   # bandeirola
+
+
 ICONES = [("arquivos", arquivos), ("terminal", terminal), ("editor", editor), ("calculadora", calculadora),
           ("banana", banana), ("sagui3d", sagui3d), ("sobre", sobre), ("pendrive", pendrive),
           ("configuracoes", configuracoes), ("cipo", cipo), ("instalado", instalado),
           ("monitor", monitor), ("visualizador", visualizador), ("musica", musica), ("energia", energia),
           ("lupa", lupa), ("chuva", chuva), ("triangulos", triangulos), ("codigo", codigo),
-          ("componentes", componentes)]
+          ("componentes", componentes), ("tocador", tocador)]
 TAMANHOS = [(64, ""), (40, "_40"), (20, "_20")]
 # Os programas recebem só o tamanho 20 (libsagui, icones.h): os ícones dos
 # programas e os da interface, com o prefixo icone_.

@@ -95,7 +95,7 @@ def main():
         # Menu próprio do Terminal: "Limpar a tela" (3º item) manda Ctrl+L ao shell.
         antes = len(m.serial())
         m.clique(t["x"] + 300, t["y"] + 200, botao=2)
-        esperar(m, "menu aberto (tipo 3, 5 itens)", 10, antes)
+        esperar(m, "menu aberto (tipo 3, 6 itens)", 10, antes)   # 6: entrou "Copiar a seleção"
         m.captura("H81-8-menu-terminal")
         m.clique(t["x"] + 300 + 20, t["y"] + 200 + 4 + 2 * 26 + 10)
         esperar(m, "terminal: menu 2", 10, antes)

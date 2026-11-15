@@ -223,7 +223,7 @@ Log cronológico do que foi feito. Uma entrada por bloco de trabalho.
   `less`, `hexdump`, `tar`, `zip`, `unzip` e `captura`. Programas novos em
   janela: Visualizador de imagens e Música (no menu do sagui). O Arquivos
   ganhou a lixeira e abre imagens, músicas e .zip nos programas certos; a aba
-  Rede das Configurações ganhou "Testar conexão". Decisão D048.
+  Rede das Configurações ganhou "Testar conexão". Decisão D049.
 - Teste novo `h87_utilitarios` (e `h87b_testar_rede`). No caminho apareceram:
   a FAT lista na ordem de gravação (o visualizador e a música agora ordenam
   pelo nome); o zoom pulava de 100% para 126% (passos de 25% agora); a janela
@@ -239,7 +239,7 @@ Log cronológico do que foi feito. Uma entrada por bloco de trabalho.
   suíte). Problemas achados: cantos em escada, moldura preta quadrada em volta
   do canto redondo nos efeitos leves, cantos de baixo retos, botões da barra de
   título serrilhados, menu e Configurações sem ícones, texto saindo dos botões.
-  Decisão D049.
+  Decisão D050.
 - Bordas suavizadas (`kernel/inc/suave.h`, para o kernel e a libsagui),
   janelas com os 4 cantos redondos e sombra também nos efeitos leves, brilho no
   vidro só nos completos. 21 ícones novos (tools/mkarte.py, 20x20 para os
@@ -268,7 +268,7 @@ Log cronológico do que foi feito. Uma entrada por bloco de trabalho.
 - Laço de seleção translúcido na área de trabalho: ele existiu no commit
   0b3c462, nos ramos `area-lixeira`, `cipo-web` e `js-tamanho`, que são do
   código antigo. Nunca entrou no main. O H88 não removeu nada.
-- Menu Iniciar com todos os programas, busca e categorias (D050). Teste novo
+- Menu Iniciar com todos os programas, busca e categorias (D051). Teste novo
   `h89_menu_iniciar`: abre o menu, busca "musica", Enter abre a Música,
   categoria Jogos, clique na Banana e Esc fecha. O `h88_visual` agora confere
   ícones nas 17 células da grade, com 3 células vazias como controle.

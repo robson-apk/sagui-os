@@ -88,7 +88,15 @@ static int ler(disco_t *k, uint32_t lba, uint32_t n, void *buf)
         uint32_t parte = n > MAX_SETORES_POR_COMANDO ? MAX_SETORES_POR_COMANDO : n;
         uint8_t cdb[10] = { 0x28, 0, (uint8_t)(lba >> 24), (uint8_t)(lba >> 16), (uint8_t)(lba >> 8), (uint8_t)lba,
                             0, (uint8_t)(parte >> 8), (uint8_t)parte, 0 };
-        int r = scsi(d, cdb, 10, p, parte * k->tam_setor, true);
+        /* Pendrives de verdade às vezes falham numa transferência e acertam
+         * na seguinte (no G470, uma música do pendrive parava no meio): até 3
+         * tentativas, anotadas no diário. */
+        int r = -1;
+        for (int t = 0; t < 3; t++) {
+            r = scsi(d, cdb, 10, p, parte * k->tam_setor, true);
+            if (r >= (int)(parte * k->tam_setor)) break;
+            klog("[USB] leitura de %u setores em %u falhou (%d), tentativa %d\n", parte, lba, r, t + 1);
+        }
         if (r < (int)(parte * k->tam_setor)) return r < 0 ? r : USB_ERRO;
         lba += parte; n -= parte; p += parte * k->tam_setor;
     }

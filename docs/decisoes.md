@@ -1512,7 +1512,41 @@ tipo no `info_sistema`, que já serve memória, processos e versão:
   clusters já mantêm a conta em dia. A FAT é lida em blocos de 64 setores.
   Se a conta difere do FSInfo, uma linha no log diz quanto era e quanto é.
 
-## D047. Todo o userland realinha a pilha para o SSE2 (H63)
+## D047. MP3 do zero, pela norma (H86)
+
+O Tocador precisa tocar MP3, e o decodificador (`userland/tocador/mp3.c`) foi
+escrito aqui, a partir da descrição da norma ISO/IEC 11172-3 (MPEG-1 áudio,
+Layer III) e da ISO/IEC 13818-3 (as taxas de 16, 22,05 e 24 kHz do MPEG-2),
+sem consultar nem reproduzir nenhum decodificador existente. É um aplicativo,
+e a D041 permitiria código livre de terceiros, mas um MP3 cabe em pouco mais de mil linhas
+e dá para explicar etapa por etapa; não havia motivo para a exceção.
+
+- **O que vem da norma como dado** (`mp3_tabelas.h`): os códigos de Huffman,
+  as faixas de fator de escala, a pré-ênfase, os coeficientes da janela de
+  síntese e as contagens de fatores do MPEG-2. São números dos anexos, iguais
+  em qualquer decodificador; estão em `CREDITOS.md`. O resto (as janelas e os
+  cossenos da IMDCT, a matriz do banco de síntese, n^(4/3), as potências de
+  2) é calculado pelas fórmulas ao abrir o primeiro arquivo, com cosseno e
+  raízes próprios (não há libc).
+- **Simples antes de rápido.** As árvores de Huffman são percorridas bit a
+  bit, a IMDCT é a soma direta da fórmula e o banco de síntese é a receita da
+  figura da norma, só aproveitando que o cosseno se repete (32 das 64 linhas
+  da matriz). Em float pelo SSE2 (D042). No QEMU, 3 s de música estéreo
+  decodificam em cerca de 0,3 s; se o G470 precisar, dá para acelerar depois.
+- **Como se sabe que está certo.** `tests/h86_mp3.py` compila o mesmo `mp3.c`
+  no PC de build e compara o som com o da libmpg123, em arquivos feitos na
+  hora pela libmp3lame (as duas só como ferramentas de teste, como o QEMU): a
+  diferença máxima é de 1 unidade em 16 bits (SNR perto de 97 dB). O estéreo
+  de intensidade, que a libmp3lame não gera, é conferido com quadros montados
+  à mão pelo teste.
+- **Ficou de fora:** o "MPEG-2.5" (8, 11,025 e 12 kHz), que não é da ISO; o
+  "formato livre" (taxa de bits fora da tabela); a conferência do CRC (os
+  quadros com CRC tocam, o CRC é pulado); e o corte do silêncio do começo e
+  do fim (a informação "gapless" do quadro LAME). Os blocos mistos estão
+  escritos pela norma, mas nenhum codificador à mão os gera: não foram
+  testados.
+
+## D048. Todo o userland realinha a pilha para o SSE2 (H63)
 
 O D042 fez os programas usarem SSE2, e o D043 já tinha corrigido a pilha
 inicial e as pilhas trocadas do Cipó e do tocador. Faltava o outro lado: a
@@ -1526,7 +1560,7 @@ alinha a própria pilha ao entrar, então qualquer pilha trocada à mão (motor,
 JavaScript, compilador ou um programa futuro) é segura, e o Cipó e o tocador
 não precisam mais do flag separado. O kernel continua sem SSE e sem esse custo.
 
-## D048. Programas úteis: comandos de texto, pacotes, captura, imagens, música e lixeira (H87)
+## D049. Programas úteis: comandos de texto, pacotes, captura, imagens, música e lixeira (H87)
 
 **Pedido.** Deixar o sistema mais completo para o uso do dia a dia, sem
 código de terceiros novo: tudo foi escrito para o SaguiOS, e o que já existia
@@ -1581,7 +1615,7 @@ Arquivos. O `rm` do terminal continua apagando de vez, como no Unix.
 botão "Testar conexão": resolve example.com pelo DNS e abre uma conexão TCP na
 porta 80, com o tempo de cada passo.
 
-## D049. Revisão do visual: bordas suavizadas, ícones e Configurações (H88)
+## D050. Revisão do visual: bordas suavizadas, ícones e Configurações (H88)
 
 **Pedido.** O usuário apontou bordas com pontas, vidro mal feito, as
 Configurações feias, falta de ícones (só texto) e texto saindo dos botões. As
@@ -1637,7 +1671,7 @@ então os testes que clicam nele foram ajustados. O `-Wno-missing-field-initiali
 entra no `UCFLAGS` porque `botao_t` ganhou campos no fim: quem escreve
 `{ x, y, l, a, texto }` deixa o resto em zero, que é o certo.
 
-## D050 - Menu Iniciar com todos os programas, busca e categorias (H89)
+## D051. Menu Iniciar com todos os programas, busca e categorias (H89)
 
 **Contexto.** O menu do sagui listava 13 programas numa coluna. Programas que
 existem em `/bin` e abrem janela (Chuva de letras, Triângulos 3D, Componentes,

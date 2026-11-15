@@ -58,6 +58,54 @@ static const char *const ic_programa[] = {
     ".PPPPPPPPPPPPPP.", "................", "................", "................",
 };
 
+/* Ícones por tipo de arquivo (pedido do Eli: o .wav aparecia como texto). */
+static const char *const ic_musica[] = {          /* uma nota musical */
+    "..PPPPPPPPPPPP..", "..PBBBBBBBBBBP..", "..PBBBBBNNNBBP..", "..PBBBBBNBNNBP..",
+    "..PBBBBBNBBNBP..", "..PBBBBBNBBBBP..", "..PBBBBBNBBBBP..", "..PBBBBBNBBBBP..",
+    "..PBBBNNNBBBBP..", "..PBBNNNNBBBBP..", "..PBBNNNNBBBBP..", "..PBBBNNBBBBBP..",
+    "..PBBBBBBBBBBP..", "..PBBBBBBBBBBP..", "..PPPPPPPPPPPP..", "................",
+};
+static const char *const ic_imagem[] = {          /* céu, sol e morro */
+    "................", "PPPPPPPPPPPPPPPP", "PSSSSSSSSSSSSSSP", "PSSSSSSSSSOOSSSP",
+    "PSSSSSSSSSOOSSSP", "PSSSSSSSSSSSSSSP", "PSSSSSGSSSSSSSSP", "PSSSSGGGSSSSSSSP",
+    "PSSSGGGGGSSSGSSP", "PSSGGGGGGGSGGGSP", "PSGGGGGGGGGGGGGP", "PGGGGGGGGGGGGGGP",
+    "PPPPPPPPPPPPPPPP", "................", "................", "................",
+};
+static const char *const ic_pagina[] = {          /* uma página com a faixa azul de navegador */
+    "................", "PPPPPPPPPPPPPPPP", "PVVVVVVVVVVVVVVP", "PVBVBVBVVVVVVVVP",
+    "PPPPPPPPPPPPPPPP", "PBBBBBBBBBBBBBBP", "PBNNNNNNNBBBBBBP", "PBBBBBBBBBBBBBBP",
+    "PBCCCCCCCCCCCCBP", "PBCCCCCCCCCCBBBP", "PBBBBBBBBBBBBBBP", "PBVVVVVBBBBBBBBP",
+    "PBBBBBBBBBBBBBBP", "PPPPPPPPPPPPPPPP", "................", "................",
+};
+static const char *const ic_video[] = {           /* um rolo de filme com o botão de tocar */
+    "................", "PPPPPPPPPPPPPPPP", "PBPBPBPBPBPBPBPP", "PPPPPPPPPPPPPPPP",
+    "PDDDDDDDDDDDDDDP", "PDDDDDBDDDDDDDDP", "PDDDDDBBDDDDDDDP", "PDDDDDBBBDDDDDDP",
+    "PDDDDDBBBBDDDDDP", "PDDDDDBBBDDDDDDP", "PDDDDDBBDDDDDDDP", "PDDDDDBDDDDDDDDP",
+    "PPPPPPPPPPPPPPPP", "PBPBPBPBPBPBPBPP", "PPPPPPPPPPPPPPPP", "................",
+};
+
+static bool extensao(const char *s, const char *fim)
+{
+    unsigned a = tam_texto(s), b = tam_texto(fim);
+    if (a < b) return false;
+    for (unsigned i = 0; i < b; i++) {
+        char c = s[a - b + i];
+        if (c >= 'A' && c <= 'Z') c = (char)(c - 'A' + 'a');
+        if (c != fim[i]) return false;
+    }
+    return true;
+}
+
+static const char *const *icone_do_arquivo(const char *nome)
+{
+    if (extensao(nome, ".wav") || extensao(nome, ".mp3")) return ic_musica;
+    if (extensao(nome, ".png") || extensao(nome, ".jpg") || extensao(nome, ".jpeg") || extensao(nome, ".gif") ||
+        extensao(nome, ".webp") || extensao(nome, ".svg") || extensao(nome, ".bmp")) return ic_imagem;
+    if (extensao(nome, ".html") || extensao(nome, ".htm")) return ic_pagina;
+    if (extensao(nome, ".mp4")) return ic_video;
+    return ic_arquivo;
+}
+
 static uint32_t paleta(char c)
 {
     switch (c) {
@@ -69,13 +117,16 @@ static uint32_t paleta(char c)
     case 'V': return 0x2A6FD8;
     case 'D': return 0x182030;
     case 'G': return 0x3CDC6E;
+    case 'N': return 0x0B7A3E;   /* nota e texto em verde */
+    case 'S': return 0x8FD0F0;   /* céu */
+    case 'O': return 0xFFD23A;   /* sol */
     default:  return 0xFF000000;
     }
 }
 
 static void icone(jan_t *jj, int x, int y, int i)
 {
-    const char *const *d = tipos[i] == TIPO_PASTA ? ic_pasta : tipos[i] == TIPO_PROGRAMA ? ic_programa : ic_arquivo;
+    const char *const *d = tipos[i] == TIPO_PASTA ? ic_pasta : tipos[i] == TIPO_PROGRAMA ? ic_programa : icone_do_arquivo(nomes[i]);
     g_desenho(jj, x, y, d, 16, 16, paleta, 1);
 }
 
@@ -227,6 +278,47 @@ static void extrair_zip(int i, const char *c)
     carregar();
 }
 
+/* Que programa abre este arquivo, pela extensão (dois cliques). O que não
+ * estiver na lista abre no Editor, como antes. */
+static bool termina_com(const char *s, const char *fim)
+{
+    unsigned a = tam_texto(s), b = tam_texto(fim);
+    if (a < b) return false;
+    for (unsigned i = 0; i < b; i++) {
+        char c = s[a - b + i];
+        if (c >= 'A' && c <= 'Z') c = (char)(c - 'A' + 'a');
+        if (c != fim[i]) return false;
+    }
+    return true;
+}
+
+static const char *programa_para(const char *nome)
+{
+    static const struct { const char *ext, *prog; } tabela[] = {
+        { ".wav", "/bin/tocador" }, { ".mp3", "/bin/tocador" },
+        { ".html", "/bin/cipo" }, { ".htm", "/bin/cipo" },
+        { ".png", "/bin/cipo" }, { ".jpg", "/bin/cipo" }, { ".jpeg", "/bin/cipo" }, { ".gif", "/bin/cipo" },
+        { ".webp", "/bin/cipo" }, { ".svg", "/bin/cipo" }, { ".mp4", "/bin/video" },
+    };
+    for (unsigned k = 0; k < sizeof tabela / sizeof tabela[0]; k++)
+        if (termina_com(nome, tabela[k].ext)) return tabela[k].prog;
+    return "/bin/editor";
+}
+
+static void abrir_com(int i, const char *programa)
+{
+    char c[200];
+    caminho_de(i, c, sizeof c);
+    const char *nome = programa;
+    for (const char *p = programa; *p; p++) if (*p == '/') nome = p + 1;
+    char *argv[3] = { (char *)nome, c, NULL };
+    int pid = executar(programa, argv);
+    registrar("arquivos: abrindo %s com %s (pid %d)", c, programa, pid);
+    char msg[200];
+    formatar_texto(msg, sizeof msg, pid > 0 ? "Abrindo %s..." : "Não consegui abrir %s", nomes[i]);
+    desenhar_rodape(msg);
+}
+
 static void abrir_item(int i)
 {
     if (i < 0 || i >= lista.qtd) return;
@@ -251,9 +343,8 @@ static void abrir_item(int i)
         extrair_zip(i, c);
         return;
     } else {
-        argv[0] = "editor"; argv[1] = c; argv[2] = NULL;
-        pid = executar("/bin/editor", argv);
-        registrar("arquivos: abrindo no editor %s (pid %d)", c, pid);
+        abrir_com(i, programa_para(nomes[i]));
+        return;
     }
     char msg[200];
     formatar_texto(msg, sizeof msg, pid > 0 ? "Abrindo %s..." : "Não consegui abrir %s", nomes[i]);
@@ -511,16 +602,32 @@ int principal(int argc, char **argv)
                 else if (e.tecla == 3) voltar();
             } else {
                 if (e.tecla == 0 && lista.sel >= 0) abrir_item(lista.sel);
-                else if (e.tecla == 1) apagar_item();
-                else if (e.tecla == 2) nova_pasta();
-                else if (e.tecla == 3) voltar();
+                else if (e.tecla == 1 && lista.sel >= 0 && tipos[lista.sel] != TIPO_PASTA) abrir_com(lista.sel, "/bin/editor");
+                else if (e.tecla == 2) apagar_item();
+                else if (e.tecla == 3) nova_pasta();
+                else if (e.tecla == 4) voltar();
             }
             continue;
         }
         int r = lista_tratar(j, &lista, &e);
         if (e.tipo == EV_CLIQUE && (e.botoes & 2)) {
-            jan_menu(j, e.x, e.y, lx ? "Restaurar|Apagar de vez...|Esvaziar lixeira...|Voltar"
-                                     : "Abrir|Apagar...|Nova pasta...|Voltar");
+            /* O primeiro item diz com que programa abre (pela extensão). */
+            static char itens[160];
+            const char *prog = lista.sel >= 0 && tipos[lista.sel] != TIPO_PASTA && tipos[lista.sel] != TIPO_PROGRAMA
+                             ? programa_para(nomes[lista.sel]) : NULL;
+            const char *n = lista.sel >= 0 ? nomes[lista.sel] : "";
+            const char *primeiro = !prog ? "Abrir"
+                : tem_extensao(n, ".png|.jpg|.jpeg|.gif|.webp|.bmp") ? "Abrir no Visualizador"   /* H87 */
+                : tem_extensao(n, ".wav") ? "Abrir na Música"
+                : tem_extensao(n, ".zip") ? "Extrair..."
+                : compara_texto(prog, "/bin/tocador") == 0 ? "Abrir no Tocador"
+                : compara_texto(prog, "/bin/cipo") == 0 ? "Abrir no Cipó"
+                : compara_texto(prog, "/bin/video") == 0 ? "Abrir no Vídeo" : "Abrir no Editor";
+            if (lx) jan_menu(j, e.x, e.y, "Restaurar|Apagar de vez...|Esvaziar lixeira...|Voltar");
+            else {
+                formatar_texto(itens, sizeof itens, "%s|Abrir no Editor|Apagar...|Nova pasta...|Voltar", primeiro);
+                jan_menu(j, e.x, e.y, itens);
+            }
             continue;
         }
         if (r == LISTA_ATIVOU) abrir_item(lista.sel);

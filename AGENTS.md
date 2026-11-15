@@ -99,9 +99,16 @@ deixe misturado como se fosse original.
 
 ## Pull requests
 
-- **Um assunto por pull request**, pequeno o bastante para ser revisado. Um
-  pull request com dezenas de milhares de linhas não dá para revisar: quebre em
-  partes.
+- **Um assunto por pull request, pequeno.** Como referência: até umas
+  **500 linhas** de código mudadas (sem contar testes e dados gerados), uma
+  funcionalidade ou uma correção por vez. Um pull request com milhares de linhas
+  não dá para revisar e provavelmente vai ser fechado, com as ideias
+  aproveitadas aos poucos. Coisa grande? Abra uma **issue** primeiro, explique o
+  plano e mande em partes (por exemplo, "motor de CSS", depois "Canvas").
+- **Baseie no `main` atual** e não mexa no que não é do assunto: nada de mudar
+  o estilo de arquivos inteiros, renomear coisas sem motivo, trocar a pasta
+  `entrega/` (as imagens são geradas pelo mantenedor) ou mudar a ABI das
+  chamadas de sistema sem combinar antes numa issue.
 - Cada commit com a linha **`Signed-off-by: Nome <email>`** (`git commit -s`):
   é a declaração de origem do código (DCO, a mesma do kernel do Linux), em que a
   pessoa afirma que tem direito de enviar aquele código sob a GPL 3.

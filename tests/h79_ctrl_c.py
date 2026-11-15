@@ -54,6 +54,16 @@ def main():
         out = m.comando("ola")
         verificar("Ol" in out, "o shell segue funcionando depois do Ctrl+C")
         m.captura("H79-ctrl-c")
+        # clear/limpar apaga a tela do Terminal em janela (antes mandava só
+        # ESC[J, que apaga do cursor para baixo, e nada sumia).
+        m.comando("ls bin")
+        m.comando("limpar")
+        time.sleep(0.8)
+        png = m.captura("H79-limpar", guardar=False)
+        fundo = celula(20, 60)
+        vazias = all(celula(l, c) == fundo for l in (3, 8, 15) for c in (0, 5, 20))
+        verificar(vazias, "limpar apaga a tela do Terminal (as linhas de baixo ficaram vazias)")
+        verificar(len(celula(0, 2)) > 1, "o prompt volta para a primeira linha")
     return 0
 
 

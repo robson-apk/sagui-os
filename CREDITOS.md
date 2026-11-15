@@ -38,6 +38,13 @@ ficarem misturados no meio do Cipó, foram separados, com a licença original e 
   simplificada do IETF Trust ("Copyright (c) 2016 IETF Trust and the persons identified as the
   document authors").
 
+### Dados do decodificador de MP3
+
+- **Tabelas da norma do MP3** (`userland/tocador/mp3_tabelas.h`): os códigos de Huffman, as faixas
+  de fator de escala, a pré-ênfase e a janela de síntese dos anexos da ISO/IEC 11172-3, e as
+  contagens de fatores de escala da ISO/IEC 13818-3. São dados que todo decodificador de MP3 tem
+  de ter, iguais em todos; o código que os usa (`userland/tocador/mp3.c`) foi escrito aqui (D047).
+
 ### Imagens
 
 #### Fundo "Mata Atlântica" (`/arte/mata-atlantica.sgi`)

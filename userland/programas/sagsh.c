@@ -305,7 +305,7 @@ static int ler_comando(char *linha)
             linha[0] = 0;
             prompt();
         } else if (t == 12) {                             /* Ctrl+L: limpa a tela */
-            mostrar("\x1b[J");
+            mostrar("\x1b[H\x1b[J");
             prompt();
             reescrever_de(linha, n, 0, cur);
         } else if (t == (0x100 | TECLA_B_CIMA)) {
@@ -425,7 +425,9 @@ static bool executar_interno(const comando_t *c, int argc, char **argv)
         pasta_atual(p, sizeof p);
         imprimir("%s\n", p);
     } else if (compara_texto(n, "clear") == 0) {
-        mostrar("\x1b[J");   /* funciona no terminal de tela cheia e no Terminal em janela */
+        mostrar("\x1b[H\x1b[J");   /* cursor ao início e apaga até o fim: serve ao Terminal em janela
+                                     * (só ESC[J apagava do cursor para baixo, e nada sumia) e ao console
+                                     * do kernel (que ignora o ESC[H e limpa tudo com o ESC[J) */
     } else if (compara_texto(n, "ajuda") == 0) {
         interno_ajuda(argc, argv);
     } else if (compara_texto(n, "reiniciar") == 0) {

@@ -88,6 +88,8 @@ typedef struct {
     bool  foco;
     bool  modificado;
     bool  somente_leitura;
+    int   sel;            /* seleção: a outra ponta + 1 (0 = nada selecionado); vai do sel-1 ao cursor */
+    bool  arrastando;     /* botão apertado dentro do texto: mover o mouse estende a seleção */
 } area_t;
 bool area_iniciar(area_t *a, int x, int y, int l, int al);
 void area_definir(area_t *a, const char *texto, int n);

@@ -350,6 +350,7 @@ void area_definir(area_t *a, const char *texto, int n)
     a->tam = n;
     a->cursor = 0;
     a->topo = 0;
+    a->sel = 0;
     a->modificado = false;
 }
 
@@ -393,6 +394,16 @@ static void cursor_visivel(area_t *a)
     if (lin >= a->topo + vis) a->topo = lin - vis + 1;
 }
 
+/* Seleção (pedido do Eli: copiar e colar). Devolve false se não há. */
+static bool selecao(area_t *a, int *ini, int *fim)
+{
+    if (!a->sel || a->sel - 1 == a->cursor) return false;
+    int s = a->sel - 1 > a->tam ? a->tam : a->sel - 1;
+    *ini = s < a->cursor ? s : a->cursor;
+    *fim = s < a->cursor ? a->cursor : s;
+    return true;
+}
+
 void area_desenhar(jan_t *j, area_t *a)
 {
     int texto_l = a->l - BARRA_ROLAGEM;
@@ -404,7 +415,17 @@ void area_desenhar(jan_t *j, area_t *a)
     int pos = inicio_da_linha(a, a->topo);
     for (int k = 0; k < vis && pos <= a->tam; k++) {
         int n = tamanho_da_linha(a, pos);
-        g_texto_n(j, a->x + 5, a->y + 4 + k * LETRA_A, a->buf + pos, n < cabem ? n : cabem, COR_TEXTO);
+        int mostra = n < cabem ? n : cabem, s0, s1;
+        g_texto_n(j, a->x + 5, a->y + 4 + k * LETRA_A, a->buf + pos, mostra, COR_TEXTO);
+        if (selecao(a, &s0, &s1)) {
+            /* O trecho selecionado desta linha: fundo azul e letras brancas. */
+            int i0 = s0 > pos ? s0 - pos : 0, i1 = s1 < pos + n ? s1 - pos : n + (s1 > pos + n ? 1 : 0);
+            if (i1 > mostra) i1 = mostra;
+            if (i0 < i1) {
+                g_retangulo(j, a->x + 5 + i0 * LETRA_L, a->y + 4 + k * LETRA_A, (i1 - i0) * LETRA_L, LETRA_A, COR_SELECAO);
+                g_texto_n(j, a->x + 5 + i0 * LETRA_L, a->y + 4 + k * LETRA_A, a->buf + pos + i0, i1 - i0 > n - i0 ? n - i0 : i1 - i0, COR_BRANCO);
+            }
+        }
         if (a->foco && !a->somente_leitura && a->topo + k == lin_cur && col_cur <= cabem)
             g_retangulo(j, a->x + 5 + col_cur * LETRA_L, a->y + 4 + k * LETRA_A, 2, LETRA_A, COR_TEXTO);
         pos += n + 1;
@@ -450,9 +471,50 @@ static void mover_vertical(area_t *a, int delta)
     a->cursor = ini + (col < n ? col : n);
 }
 
+/* Posição do texto sob o ponto (x, y) da janela. */
+static int posicao_em(area_t *a, int x, int y)
+{
+    int lin = a->topo + (y - a->y - 4) / LETRA_A, col = (x - a->x - 5 + LETRA_L / 2) / LETRA_L;
+    int total = total_linhas(a);
+    if (lin >= total) lin = total - 1;
+    if (lin < 0) lin = 0;
+    int ini = inicio_da_linha(a, lin), n = tamanho_da_linha(a, ini);
+    return ini + (col < 0 ? 0 : col > n ? n : col);
+}
+
+/* Apaga o que está selecionado (digitar por cima, Backspace, Ctrl+X). */
+static bool apagar_selecao(area_t *a)
+{
+    int s0, s1;
+    if (!selecao(a, &s0, &s1)) { a->sel = 0; return false; }
+    memmove(a->buf + s0, a->buf + s1, (size_t)(a->tam - s1 + 1));
+    a->tam -= s1 - s0;
+    a->cursor = s0;
+    a->sel = 0;
+    a->modificado = true;
+    return true;
+}
+
+static void copiar_selecao_area(area_t *a)
+{
+    int s0, s1;
+    if (selecao(a, &s0, &s1)) area_copia_gravar(a->buf + s0, (unsigned)(s1 - s0));
+}
+
 bool area_tratar(jan_t *j, area_t *a, const evento_t *e)
 {
     bool mudou = false;
+    /* Arrastar com o botão apertado estende a seleção. */
+    if (e->tipo == EV_MOVER && a->arrastando && (e->botoes & 1)) {
+        int p = posicao_em(a, e->x, e->y);
+        if (p != a->cursor) { a->cursor = p; cursor_visivel(a); area_desenhar(j, a); }
+        return false;
+    }
+    if (e->tipo == EV_SOLTOU) {
+        if (a->arrastando && a->sel - 1 == a->cursor) a->sel = 0;
+        a->arrastando = false;
+        return false;
+    }
     if (e->tipo == EV_CLIQUE) {
         bool estava = a->foco;
         a->foco = dentro(e->x, e->y, a->x, a->y, a->l, a->a);
@@ -464,12 +526,14 @@ bool area_tratar(jan_t *j, area_t *a, const evento_t *e)
                 if (a->topo > total - vis) a->topo = total - vis;
                 if (a->topo < 0) a->topo = 0;
             } else {
-                int lin = a->topo + (e->y - a->y - 4) / LETRA_A, col = (e->x - a->x - 5 + LETRA_L / 2) / LETRA_L;
-                int total = total_linhas(a);
-                if (lin >= total) lin = total - 1;
-                if (lin < 0) lin = 0;
-                int ini = inicio_da_linha(a, lin), n = tamanho_da_linha(a, ini);
-                a->cursor = ini + (col < 0 ? 0 : col > n ? n : col);
+                int p = posicao_em(a, e->x, e->y);
+                if ((e->botoes & 1) && (e->modificadores & 1)) {   /* Shift+clique: seleciona até aqui */
+                    if (!a->sel) a->sel = a->cursor + 1;
+                } else if (e->botoes & 1) {
+                    a->sel = p + 1;                                 /* começa uma seleção nova */
+                    a->arrastando = true;
+                }
+                if (e->botoes & 1) a->cursor = p;
             }
         }
         if (a->foco || estava) area_desenhar(j, a);
@@ -478,6 +542,39 @@ bool area_tratar(jan_t *j, area_t *a, const evento_t *e)
     if (e->tipo != EV_TECLA || !a->foco) return false;
     unsigned t = e->tecla;
     int vis = area_linhas_visiveis(a);
+    /* Ctrl+A seleciona tudo; Ctrl+C copia; Ctrl+X recorta; Ctrl+V cola. */
+    if (t == 1) { a->sel = 1; a->cursor = a->tam; area_desenhar(j, a); return false; }
+    if (t == 3) { copiar_selecao_area(a); return false; }
+    if (t == 24 && !a->somente_leitura) { copiar_selecao_area(a); mudou = apagar_selecao(a); cursor_visivel(a); area_desenhar(j, a); return mudou; }
+    if (t == 22 && !a->somente_leitura) {
+        int n = area_copia_ler(NULL, 0);
+        char *c = n > 0 ? aloca((size_t)n + 1) : NULL;
+        if (c) {
+            n = area_copia_ler(c, (unsigned)n);
+            apagar_selecao(a);
+            for (int i = 0; i < n; i++) if (c[i] == '\r') c[i] = ' ';
+            inserir(a, c, n);
+            libera(c);
+            mudou = true;
+        }
+        cursor_visivel(a);
+        area_desenhar(j, a);
+        return mudou;
+    }
+    /* Setas com Shift estendem a seleção; sem Shift, ela some. */
+    bool movimento = t == TECLA_ESQUERDA || t == TECLA_DIREITA || t == TECLA_CIMA || t == TECLA_BAIXO ||
+                     t == TECLA_PGUP || t == TECLA_PGDN || t == TECLA_HOME || t == TECLA_END;
+    if (movimento) {
+        if (e->modificadores & 1) { if (!a->sel) a->sel = a->cursor + 1; }
+        else a->sel = 0;
+    } else if (!a->somente_leitura && a->sel && (t == '\b' || t == TECLA_DELETE)) {
+        mudou = apagar_selecao(a);
+        cursor_visivel(a);
+        area_desenhar(j, a);
+        return mudou;
+    } else if (!a->somente_leitura && a->sel && ((t >= 0x20 && t < 0x100 && t != 0x7F) || t == '\n' || t == '\t')) {
+        apagar_selecao(a);   /* digitar por cima troca o selecionado */
+    }
     if (t == TECLA_ESQUERDA) { if (a->cursor > 0) a->cursor--; }
     else if (t == TECLA_DIREITA) { if (a->cursor < a->tam) a->cursor++; }
     else if (t == TECLA_CIMA) mover_vertical(a, -1);
