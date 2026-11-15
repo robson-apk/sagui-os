@@ -12,6 +12,7 @@
  * Restaurar, Apagar de vez e Esvaziar. Shift+Delete apaga de vez. */
 #include "sagui.h"
 #include "gui.h"
+#include "icones.h"
 
 static int larg_jan = 720, alt_jan = 440;   /* a janela pode mudar de tamanho (H78) */
 #define LARG larg_jan
@@ -27,13 +28,14 @@ static uint32_t tamanhos[MAX_ITENS];
 static lista_t lista;
 static info_disco_t pendrive;
 static bool tem_pendrive;
-static botao_t bt_lado_raiz = { 8, 76, LATERAL - 16, 28, "SaguiOS", false };
-static botao_t bt_lado_pen = { 8, 112, LATERAL - 16, 28, "Pendrive", false };
+static botao_t bt_lado_raiz = { 8, 76, LATERAL - 16, 28, "SaguiOS", false, icone_sobre, false, true };
+static botao_t bt_lado_pen = { 8, 112, LATERAL - 16, 28, "Pendrive", false, icone_pendrive, false, true };
 static botao_t bt_remover = { 8, 148, LATERAL - 16, 44, "", false };
-static botao_t bt_lixeira = { 8, 0, LATERAL - 16, 28, "Lixeira", false };   /* y no pé da lateral */
+static botao_t bt_lixeira = { 8, 0, LATERAL - 16, 28, "Lixeira", false, icone_lixeira, false, true };   /* y no pé da lateral */
+/* H88: botões do topo com ícone. */
 static botao_t bt[4] = {
-    { 8, 7, 90, 26, "Voltar", false }, { 106, 7, 110, 26, "Nova pasta", false },
-    { 224, 7, 90, 26, "Apagar", false }, { 322, 7, 90, 26, "Esvaziar", false },
+    { 8, 7, 96, 26, "Voltar", false, icone_voltar }, { 112, 7, 130, 26, "Nova pasta", false, icone_nova_pasta },
+    { 250, 7, 100, 26, "Apagar", false, icone_lixeira }, { 408, 7, 110, 26, "Esvaziar", false, icone_apagar },
 };
 
 /* Ícones 16x16 em pixel art. */
@@ -292,8 +294,10 @@ static void desenhar_botoes(void)
     g_retangulo(j, 0, 39, LARG, 1, COR_BORDA);
     bool lx = na_lixeira();
     bt[1].texto = lx ? "Restaurar" : "Nova pasta";
+    bt[1].icone = lx ? icone_restaurar : icone_nova_pasta;
     bt[2].texto = lx ? "Apagar de vez" : "Apagar";
-    bt[2].l = lx ? 120 : 90;
+    bt[2].icone = lx ? icone_apagar : icone_lixeira;
+    bt[2].l = lx ? 150 : 100;
     bt[3].x = bt[2].x + bt[2].l + 8;
     int n = lx ? 4 : 3;
     for (int i = 0; i < n; i++) botao_desenhar(j, &bt[i]);

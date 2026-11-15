@@ -28,6 +28,7 @@
 #include "video.h"
 #include "disco.h"
 #include "vidro.h"
+#include "suave.h"
 #include "configuracoes.h"
 
 #define MAX_JANELAS     32
@@ -250,7 +251,9 @@ static const uint32_t *px_de(const char *processo)
 {
     static const struct { const char *p; const uint32_t *px; } t[] = {
         { "calculadora", arte_px_calculadora_40 }, { "banana", arte_px_banana_40 }, { "sagui3d", arte_px_sagui3d_40 },
-        { "sobre-o-sistema", arte_px_sobre_40 }, { "energia", arte_px_sobre_40 }, { "cipo", arte_px_cipo_40 },
+        { "sobre-o-sistema", arte_px_sobre_40 }, { "energia", arte_px_energia_40 }, { "cipo", arte_px_cipo_40 },
+        { "sagui-monitor", arte_px_monitor_40 }, { "top", arte_px_monitor_40 },                     /* H88 */
+        { "visualizador", arte_px_visualizador_40 }, { "musica", arte_px_musica_40 },
     };
     for (unsigned i = 0; i < sizeof t / sizeof t[0]; i++) if (txt_compara(t[i].p, processo) == 0) return t[i].px;
     return arte_px_instalado_40;
@@ -332,50 +335,63 @@ static void desenhar_doca(void)
 
 /* ------------------------------------------------------------ menu do sagui (H75) */
 
+/* H88: cada item com o ícone de 20 pixels; uma linha separa os dois últimos. */
 static const fixo_t menu_itens[] = {
-    { "Arquivos", "/bin/arquivos", "", 0 }, { "Terminal", "/bin/terminal", "", 0 },
-    { "Cipó", "/bin/navegador", "", 0 }, { "Editor", "/bin/editor", "", 0 },
-    { "Calculadora", "/bin/calculadora", "", 0 }, { "Banana", "/bin/banana", "", 0 },
-    { "Sagui 3D", "/bin/sagui3d", "", 0 }, { "Configurações", "/bin/configuracoes", "", 0 },
-    { "Sagui Monitor", "/bin/sagui-monitor", "", 0 },
-    { "Visualizador", "/bin/visualizador", "", 0 }, { "Música", "/bin/musica", "", 0 },   /* H87 */
-    { "Sobre o SaguiOS", "/bin/sobre-o-sistema", "", 0 }, { "Desligar...", "/bin/energia", "", 0 },
+    { "Arquivos", "/bin/arquivos", "", arte_px_arquivos_20 }, { "Terminal", "/bin/terminal", "", arte_px_terminal_20 },
+    { "Cipó", "/bin/navegador", "", arte_px_cipo_20 }, { "Editor", "/bin/editor", "", arte_px_editor_20 },
+    { "Calculadora", "/bin/calculadora", "", arte_px_calculadora_20 }, { "Banana", "/bin/banana", "", arte_px_banana_20 },
+    { "Sagui 3D", "/bin/sagui3d", "", arte_px_sagui3d_20 }, { "Configurações", "/bin/configuracoes", "", arte_px_configuracoes_20 },
+    { "Sagui Monitor", "/bin/sagui-monitor", "", arte_px_monitor_20 },
+    { "Visualizador", "/bin/visualizador", "", arte_px_visualizador_20 }, { "Música", "/bin/musica", "", arte_px_musica_20 },   /* H87 */
+    { "Sobre o SaguiOS", "/bin/sobre-o-sistema", "", arte_px_sobre_20 }, { "Desligar...", "/bin/energia", "", arte_px_energia_20 },
 };
+#define MENU_SEPARA 11      /* a linha fica antes deste item */
 #define QTD_MENU (int)(sizeof menu_itens / sizeof menu_itens[0])
 #define MENU_X 4
 #define MENU_Y (BARRA_SUPERIOR + 4)
-#define MENU_L 200
-#define MENU_ITEM 26
+#define MENU_L 220
+#define MENU_ITEM 26        /* menu de contexto */
+#define MENU_LINHA 30       /* menu do sagui, com ícones (H88) */
+#define MENU_ALT (QTD_MENU * MENU_LINHA + 8 + 9)
 static bool menu_aberto;
 static int menu_sob = -1;
 
 static void redesenhar_menu(void)
 {
-    gui_redesenhar(0, 0, MENU_X + MENU_L + VIDRO_SOMBRA + VIDRO_RAIO, MENU_Y + QTD_MENU * MENU_ITEM + 12 + VIDRO_SOMBRA + VIDRO_RAIO);
+    gui_redesenhar(0, 0, MENU_X + MENU_L + VIDRO_SOMBRA + VIDRO_RAIO, MENU_Y + MENU_ALT + 4 + VIDRO_SOMBRA + VIDRO_RAIO);
 }
 
 static void desenhar_menu(void)
 {
     if (!menu_aberto) return;
-    int a = QTD_MENU * MENU_ITEM + 8;
+    int a = MENU_ALT;
     vidro_sombra(&tela, MENU_X, MENU_Y, MENU_L, a);
     /* O menu tem texto pequeno em cima do vidro: quase opaco (o Eli achou
      * transparente demais no G470), só um toque do fundo. */
     vidro_pintar(&tela, MENU_X, MENU_Y, MENU_L, a, tema->topo, 238, CANTOS_EM_CIMA | CANTOS_EMBAIXO);
+    suave_t sv = { tela.px, tela.larg, tela.cx0, tela.cy0, tela.cx1, tela.cy1 };
+    suave_contorno(&sv, MENU_X, MENU_Y, MENU_L, a, VIDRO_CANTO, 0xFFFFFF, 40);
     for (int i = 0; i < QTD_MENU; i++) {
-        int y = MENU_Y + 4 + i * MENU_ITEM;
+        int y = MENU_Y + 4 + i * MENU_LINHA + (i >= MENU_SEPARA ? 9 : 0);
+        if (i == MENU_SEPARA) sup_retangulo(&tela, MENU_X + 12, y - 5, MENU_L - 24, 1, cor_mistura(tema->topo, tema->topo_relogio, 1, 4));
         if (i == menu_sob) {
-            sup_retangulo(&tela, MENU_X + 4, y, MENU_L - 8, MENU_ITEM, tema->destaque);
-            if (tema->filete) sup_retangulo(&tela, MENU_X + 4, y, 3, MENU_ITEM, tema->filete);
+            suave_ret(&sv, MENU_X + 5, y + 1, MENU_L - 10, MENU_LINHA - 2, 6, tema->destaque, tema->destaque, 256);
+            if (tema->filete) suave_ret(&sv, MENU_X + 5, y + 7, 3, MENU_LINHA - 14, 1, tema->filete, tema->filete, 256);
         }
-        sup_texto(&tela, MENU_X + 14, y + 5, menu_itens[i].nome, i == menu_sob ? 0xFFFFFF : tema->topo_relogio);
+        if (menu_itens[i].px) sup_icone(&tela, MENU_X + 13, y + 5, menu_itens[i].px, 20);
+        sup_texto(&tela, MENU_X + 42, y + 7, menu_itens[i].nome, i == menu_sob ? 0xFFFFFF : tema->topo_relogio);
     }
 }
 
 static int menu_item_em(int x, int y)
 {
     if (!menu_aberto || x < MENU_X || x >= MENU_X + MENU_L || y < MENU_Y + 4) return -1;
-    int i = (y - MENU_Y - 4) / MENU_ITEM;
+    int d = y - MENU_Y - 4;
+    if (d >= MENU_SEPARA * MENU_LINHA) {                   /* depois da linha */
+        d -= 9;
+        if (d < MENU_SEPARA * MENU_LINHA) return -1;
+    }
+    int i = d / MENU_LINHA;
     return i < QTD_MENU ? i : -1;
 }
 
@@ -460,8 +476,9 @@ static void desenhar_ctx(void)
     for (int i = 0; i < ctx_qtd; i++) {
         int y = ctx_y + 4 + i * MENU_ITEM;
         if (i == ctx_sob) {
-            sup_retangulo(&tela, ctx_x + 4, y, ctx_l - 8, MENU_ITEM, tema->destaque);
-            if (tema->filete) sup_retangulo(&tela, ctx_x + 4, y, 3, MENU_ITEM, tema->filete);
+            suave_t sv = { tela.px, tela.larg, tela.cx0, tela.cy0, tela.cx1, tela.cy1 };
+            suave_ret(&sv, ctx_x + 5, y + 1, ctx_l - 10, MENU_ITEM - 2, 6, tema->destaque, tema->destaque, 256);
+            if (tema->filete) suave_ret(&sv, ctx_x + 5, y + 6, 3, MENU_ITEM - 12, 1, tema->filete, tema->filete, 256);
         }
         sup_texto(&tela, ctx_x + 14, y + 5, ctx[i].nome, i == ctx_sob ? 0xFFFFFF : tema->topo_relogio);
     }
@@ -541,14 +558,35 @@ static void desenhar_anims(void)
 
 /* ------------------------------------------------------------ composição */
 
-/* Disco de 16 pixels com degradê (botões redondos do pull request #1 do
- * Robson): "meia" é metade da largura de cada linha. */
-static void desenhar_disco(int bx, int by, uint32_t topo, uint32_t base)
+/* Botões da barra de título (H88): discos e símbolos com a borda suavizada
+ * (suave.h). Antes eram linhas de pixels inteiros, e o X e o círculo
+ * saíam em escada. */
+static void disco(const suave_t *sv, int bx, int by, uint32_t topo, uint32_t base)
 {
-    static const uint8_t meia[8] = { 3, 5, 6, 7, 7, 8, 8, 8 };
-    for (int k = 0; k < 16; k++) {
-        int m = meia[k < 8 ? k : 15 - k];
-        sup_retangulo(&tela, bx + 8 - m, by + k, 2 * m, 1, cor_mistura(topo, base, k, 15));
+    suave_ret(sv, bx, by, 16, 16, 8, topo, base, 256);
+    suave_contorno(sv, bx, by, 16, 16, 8, 0x000000, 40);
+}
+
+static void simbolo_fechar(const suave_t *sv, int bx, int by, uint32_t cor)
+{
+    suave_traco(sv, bx * 8 + 40, by * 8 + 40, bx * 8 + 88, by * 8 + 88, 13, cor);
+    suave_traco(sv, bx * 8 + 88, by * 8 + 40, bx * 8 + 40, by * 8 + 88, 13, cor);
+}
+
+static void simbolo_minimizar(const suave_t *sv, int bx, int by, uint32_t cor)
+{
+    suave_traco(sv, bx * 8 + 34, by * 8 + 68, bx * 8 + 94, by * 8 + 68, 14, cor);
+}
+
+static void simbolo_maximizar(const suave_t *sv, int bx, int by, uint32_t cor, bool maximizada, uint32_t fundo)
+{
+    if (maximizada) {
+        suave_contorno(sv, bx + 5, by + 2, 9, 9, 2, cor, 256);
+        suave_ret(sv, bx + 2, by + 5, 9, 9, 2, fundo, fundo, 256);
+        suave_contorno(sv, bx + 2, by + 5, 9, 9, 2, cor, 256);
+    } else {
+        suave_contorno(sv, bx + 3, by + 3, 11, 11, 2, cor, 256);
+        suave_contorno(sv, bx + 4, by + 4, 9, 9, 1, cor, 200);
     }
 }
 
@@ -556,51 +594,43 @@ static void desenhar_moldura(janela_t *j, bool foco)
 {
     int x = j->x, y = j->y, l = moldura_l(j), a = moldura_a(j);
     uint32_t cor = foco ? tema->titulo_foco : tema->titulo;
+    suave_t sv = { tela.px, tela.larg, tela.cx0, tela.cy0, tela.cx1, tela.cy1 };
     vidro_sombra(&tela, x, y, l, a);
+    vidro_guardar_cantos(&tela, x, y, l, a);          /* os de baixo, depois do conteúdo */
     vidro_pintar(&tela, x, y, l, BARRA_TITULO, cor, tema->k_titulo, CANTOS_EM_CIMA);
     sup_retangulo(&tela, x, y + BARRA_TITULO, BORDA, a - BARRA_TITULO, cor);
     sup_retangulo(&tela, x + l - BORDA, y + BARRA_TITULO, BORDA, a - BARRA_TITULO, cor);
     sup_retangulo(&tela, x, y + a - BORDA, l, BORDA, cor);
-    if (!vidro_efeitos) sup_moldura(&tela, x - 1, y - 1, l + 2, a + 2, 0x101010);
     if (foco && tema->filete) sup_retangulo(&tela, x, y + BARRA_TITULO - 1, l, 1, tema->filete);
-    if (tema->titulo_forte) {
-        sup_texto_forte(&tela, x + 11, y + 5, j->titulo, cor_mistura(cor, 0x000000, 3, 5));
-        sup_texto_forte(&tela, x + 10, y + 4, j->titulo, foco ? tema->texto_foco : tema->texto);
-    } else sup_texto(&tela, x + 10, y + 4, j->titulo, foco ? tema->texto_foco : tema->texto);
+    /* O título não passa por baixo dos botões: corta onde eles começam. */
     int bx = x + l - BORDA - 20, by = y + 4, mx = bx - 24, qx = bx - 48;
+    int fim_titulo = (j->redimensionavel ? qx : mx) - 8;
+    superficie_t t2 = tela;
+    if (t2.cx1 > fim_titulo) t2.cx1 = fim_titulo;
+    if (tema->titulo_forte) {
+        sup_texto_forte(&t2, x + 11, y + 5, j->titulo, cor_mistura(cor, 0x000000, 3, 5));
+        sup_texto_forte(&t2, x + 10, y + 4, j->titulo, foco ? tema->texto_foco : tema->texto);
+    } else sup_texto(&t2, x + 12, y + 4, j->titulo, foco ? tema->texto_foco : tema->texto);
     uint32_t tc = foco ? tema->texto_foco : tema->texto;
     if (tema->botoes_cores) {
-        /* Fechar vermelho, minimizar amarelo, maximizar verde (cinza se a
-         * janela não muda de tamanho); sem foco, tons apagados. */
-        desenhar_disco(bx, by, foco ? 0xEC5A4E : 0x9A6A66, foco ? 0xC02E26 : 0x7A524E);
-        for (int k = 4; k < 12; k++) {
-            sup_retangulo(&tela, bx + k, by + k, 2, 1, 0xFFFFFF);
-            sup_retangulo(&tela, bx + 14 - k, by + k, 2, 1, 0xFFFFFF);
-        }
-        desenhar_disco(mx, by, foco ? 0xF6CE50 : 0xA89A6A, foco ? 0xD09A18 : 0x887A4E);
-        sup_retangulo(&tela, mx + 4, by + 10, 8, 2, 0xFFFFFF);
+        /* Fechar vermelho, minimizar amarelo, maximizar verde; sem foco,
+         * tons apagados. */
+        disco(&sv, bx, by, foco ? 0xF06A5E : 0x9A6A66, foco ? 0xC8352C : 0x7A524E);
+        simbolo_fechar(&sv, bx, by, 0xFFFFFF);
+        disco(&sv, mx, by, foco ? 0xF8D25A : 0xA89A6A, foco ? 0xD49E1C : 0x887A4E);
+        simbolo_minimizar(&sv, mx, by, 0xFFFFFF);
         if (j->redimensionavel) {
-            desenhar_disco(qx, by, foco ? 0x4CC47C : 0x7C9A88, foco ? 0x1E8A4C : 0x5C7A68);
-            sup_moldura(&tela, qx + 4, by + 4, 8, 8, 0xFFFFFF);
-            sup_retangulo(&tela, qx + 4, by + 5, 8, 1, 0xFFFFFF);
+            disco(&sv, qx, by, foco ? 0x56CA84 : 0x7C9A88, foco ? 0x22904F : 0x5C7A68);
+            simbolo_maximizar(&sv, qx, by, 0xFFFFFF, j->maximizada, foco ? 0x34A862 : 0x6C8A78);
         }
         return;
     }
-    /* Fechar: um círculo vermelho com um X; minimizar: um traço. */
-    uint32_t vermelho = foco ? 0xE0483E : 0x9A6A66;
-    for (int r = 0; r < 16; r++) {
-        int pula = r < 4 ? (int[]){ 5, 3, 2, 1 }[r] : (r > 11 ? (int[]){ 1, 2, 3, 5 }[r - 12] : 0);
-        sup_retangulo(&tela, bx + pula, by + r, 16 - 2 * pula, 1, vermelho);
-    }
-    for (int k = 4; k < 12; k++) {
-        sup_retangulo(&tela, bx + k, by + k, 1, 1, 0xFFFFFF);
-        sup_retangulo(&tela, bx + 15 - k, by + k, 1, 1, 0xFFFFFF);
-    }
-    sup_retangulo(&tela, mx + 3, by + 11, 10, 2, tc);
-    if (j->redimensionavel) {                    /* maximizar (H78): um quadrado; maximizada: dois */
-        if (j->maximizada) { sup_moldura(&tela, qx + 5, by + 2, 9, 9, tc); sup_retangulo(&tela, qx + 2, by + 5, 9, 9, foco ? tema->titulo_foco : tema->titulo); sup_moldura(&tela, qx + 2, by + 5, 9, 9, tc); }
-        else { sup_moldura(&tela, qx + 2, by + 2, 12, 12, tc); sup_retangulo(&tela, qx + 2, by + 3, 12, 1, tc); }
-    }
+    /* Fechar: um disco vermelho com um X; minimizar: um traço; maximizar:
+     * um quadrado de cantos redondos. */
+    disco(&sv, bx, by, foco ? 0xEE5A50 : 0x9A6A66, foco ? 0xC8352C : 0x7A524E);
+    simbolo_fechar(&sv, bx, by, 0xFFFFFF);
+    simbolo_minimizar(&sv, mx, by, tc);
+    if (j->redimensionavel) simbolo_maximizar(&sv, qx, by, tc, j->maximizada, cor);
 }
 
 /* ------------------------------------------------------------ tamanho (H78) */
@@ -696,7 +726,7 @@ static void expandir_vidro(void)
         if (cruza(0, 0, (int)video_largura(), BARRA_SUPERIOR + R)) gui_redesenhar(0, 0, (int)video_largura(), BARRA_SUPERIOR + R);
         if (doca_ligada && cruza(doca_x - R, doca_y - 30 - R, doca_l + 2 * R, DOCA_A + 30 + 2 * R))
             gui_redesenhar(doca_x - R - DOCA_CELULA, doca_y - 30 - R, doca_l + 2 * R + 2 * DOCA_CELULA, DOCA_A + 30 + 2 * R);
-        if (menu_aberto && cruza(0, 0, MENU_X + MENU_L + R, MENU_Y + QTD_MENU * MENU_ITEM + 8 + R)) redesenhar_menu();
+        if (menu_aberto && cruza(0, 0, MENU_X + MENU_L + R, MENU_Y + MENU_ALT + R)) redesenhar_menu();
         if (ctx_aberto && cruza(ctx_x - R, ctx_y - R, ctx_l + 2 * R, ctx_qtd * MENU_ITEM + 8 + 2 * R)) redesenhar_ctx();
         for (int k = 0; k < qtd; k++) {
             janela_t *j = &janelas[ordem[k]];
@@ -725,6 +755,7 @@ void gui_mostrar(void)
         if (j->minimizada || j->escondida) continue;
         desenhar_moldura(j, j == f);
         sup_copiar(&tela, j->x + BORDA, j->y + BARRA_TITULO, j->px, j->larg, j->alt, j->larg);
+        vidro_aplicar_cantos(&tela, j->x, j->y, moldura_l(j), moldura_a(j));
     }
     desenhar_anims();
     desenhar_redimensionar();

@@ -14,6 +14,7 @@
  * pula para o ponto; duplo clique na lista toca a faixa. */
 #include "sagui.h"
 #include "gui.h"
+#include "icones.h"
 #include "../video/mp4.h"
 #include "../video/aac.h"
 
@@ -52,8 +53,9 @@ static int som = -1;
 static int volume;
 static char aviso[120];
 
-static botao_t b_ant = { 16, 112, 56, 30, "|<", false }, b_tocar = { 80, 112, 96, 30, "Tocar", false },
-               b_prox = { 184, 112, 56, 30, ">|", false }, b_menos = { 380, 112, 34, 30, "-", false },
+/* H88: os botões de tocar com ícones no lugar de "|<" e ">|". */
+static botao_t b_ant = { 16, 112, 56, 30, "", false, icone_anterior }, b_tocar = { 80, 112, 96, 30, "Tocar", false, icone_tocar },
+               b_prox = { 184, 112, 56, 30, "", false, icone_proxima }, b_menos = { 380, 112, 34, 30, "-", false },
                b_mais = { 510, 112, 34, 30, "+", false };
 
 static unsigned le16(const uint8_t *p) { return (unsigned)p[0] | ((unsigned)p[1] << 8); }
@@ -279,6 +281,7 @@ static void desenhar(void)
     g_retangulo(j, 16, 72, LARG - 32, 12, 0x313244);
     if (total) g_retangulo(j, 16, 72, (int)((LARG - 32) * agora / total), 12, 0x3CDC6E);
     b_tocar.texto = tocando ? "Pausar" : "Tocar";
+    b_tocar.icone = tocando ? icone_pausar : icone_tocar;
     botao_desenhar(j, &b_ant);
     botao_desenhar(j, &b_tocar);
     botao_desenhar(j, &b_prox);

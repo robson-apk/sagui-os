@@ -333,7 +333,7 @@ def main():
         fim = time.time() + 10
         while "arquivos: pasta /.lixeira (1 itens)" not in m.serial()[n0:] and time.time() < fim:
             time.sleep(0.2)
-        m.clique(a["x"] + 352 + 45, a["y"] + 7 + 13)                 # Esvaziar
+        m.clique(a["x"] + 408 + 50, a["y"] + 7 + 13)                 # Esvaziar (H88: depois de "Apagar de vez", 150)
         m.esperar_serial('"Esvaziar lixeira"', 10)
         time.sleep(0.5)
         d = janela(m.serial(), "Esvaziar lixeira")

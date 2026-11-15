@@ -1580,3 +1580,59 @@ Arquivos. O `rm` do terminal continua apagando de vez, como no Unix.
 **Configuração de rede.** A aba Rede já tinha DHCP ou manual (H47). Ganhou o
 botão "Testar conexão": resolve example.com pelo DNS e abre uma conexão TCP na
 porta 80, com o tempo de cada passo.
+
+## D049. Revisão do visual: bordas suavizadas, ícones e Configurações (H88)
+
+**Pedido.** O usuário apontou bordas com pontas, vidro mal feito, as
+Configurações feias, falta de ícones (só texto) e texto saindo dos botões. As
+capturas de todos os programas (`tests/vistoria.py`) confirmaram:
+
+- Os cantos redondos pulavam pixels inteiros (escada). No modo de efeitos
+  leves, que o QEMU escolhe sozinho, ainda havia uma moldura preta quadrada em
+  volta do canto redondo: daí as pontas. Os cantos de baixo eram retos.
+- Os botões de fechar, minimizar e maximizar eram linhas de pixels inteiros, e
+  o X e o círculo saíam em escada.
+- Nos efeitos leves não havia sombra: a janela era um retângulo chapado.
+- O menu do sagui e a lateral das Configurações eram só texto. "Sobre o
+  computador" encostava nas bordas do botão; "M. Atlântica", "Escuro
+  (trocar)" e a frase dos efeitos saíam para fora dos botões.
+
+**O que mudou.**
+
+- `kernel/inc/suave.h`: retângulo de cantos redondos, contorno e traço com a
+  borda suavizada (4 x 4 amostras por pixel, contas em oitavos de pixel e só
+  com inteiros, porque o kernel não usa ponto flutuante). O kernel e a
+  `libsagui` usam o mesmo arquivo.
+- Vidro (`vidro.c`): o canto tem uma tabela de cobertura (8 x 8 amostras) em
+  vez de "pixels a pular". Ganhou também uma linha clara na beira de cima e um
+  degradê que clareia o terço de cima. A sombra fica também nos efeitos leves
+  (custa só a faixa em volta da janela). Os cantos de baixo das janelas são
+  feitos guardando o fundo dos dois cantos antes de pintar a janela e
+  misturando de volta depois de copiar o conteúdo.
+- Botões da barra de título desenhados com `suave.h`. O título é cortado antes
+  dos botões.
+- Ícones: `tools/mkarte.py` ganhou monitor, visualizador, música e desligar,
+  e o tamanho 20 para todos. Com `--programas`, gera os ícones de 20x20 para a
+  `libsagui` (`userland/inc/icones.h`), mais 17 da interface (relógio,
+  aparência, som, rede, lixeira, tocar e outros). Pelo `--gc-sections`, cada
+  programa leva só os ícones que usa.
+- Menu do sagui: ícone em cada item, linha de 30 pixels, destaque redondo e
+  uma linha separando "Sobre" e "Desligar". A doca usa os ícones novos.
+- `gui.c`: botões com cantos redondos, degradê, contorno fino e ícone
+  opcional (`botao_t.icone`). O campo `ativo` marca a opção escolhida. O texto
+  que não cabe termina em "..". Caixas, listas e barras de rolagem também
+  ficaram com cantos redondos. Funções novas: `g_ret_redondo`,
+  `g_contorno_redondo`, `g_icone` e `g_texto_cortado`.
+- Configurações: lateral com ícone e nome em cada aba, e a aba aberta num
+  cartão branco com filete verde. O título da aba tem ícone. Os efeitos viram
+  três botões (Automático, Completos, Leves). A nota de baixo diz claramente
+  que, sem pendrive, os ajustes valem até desligar.
+- Arquivos, Música, Visualizador e Desligar: botões com ícones. O "Sobre"
+  mostra o tamanho da imagem em MB; antes era a porcentagem de um disquete de
+  1,44 MB, que dava "431%".
+
+**Compatibilidade.** As posições clicáveis das abas e dos botões das
+Configurações não mudaram. O menu do sagui passou a ter linhas de 30 pixels,
+então os testes que clicam nele foram ajustados. O `-Wno-missing-field-initializers`
+entra no `UCFLAGS` porque `botao_t` ganhou campos no fim: quem escreve
+`{ x, y, l, a, texto }` deixa o resto em zero, que é o certo.

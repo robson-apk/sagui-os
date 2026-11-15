@@ -8,6 +8,7 @@
  * (Som, Rede, IA, Programas). */
 #include "sagui.h"
 #include "gui.h"
+#include "icones.h"
 
 #define L 600
 #define A 440
@@ -20,23 +21,33 @@ static char recado[96];
 
 enum { ABA_RELOGIO, ABA_APARENCIA, ABA_SOM, ABA_REDE, ABA_PROGRAMAS, ABA_SOBRE, ABA_IA, QTD_ABAS };
 static const char *const nomes_abas[QTD_ABAS] = { "Relógio", "Aparência", "Som", "Rede", "Programas", "Sobre o computador", "IA" };
-static botao_t botoes_abas[QTD_ABAS];
+/* Nome curto na lateral (o nome inteiro fica no título da aba e no log). */
+static const char *const rotulos_abas[QTD_ABAS] = { "Relógio", "Aparência", "Som", "Rede", "Programas", "Computador", "IA" };
+static const uint32_t *const icones_abas[QTD_ABAS] = { icone_relogio, icone_aparencia, icone_som, icone_rede,
+                                                       icone_programas, icone_info, icone_ia };
+/* Cada aba ocupa uma linha da lateral (H88: desenhada à mão, com ícone). */
+#define ABA_X 8
+#define ABA_Y(i) (16 + (i) * 40)
+#define ABA_L (LATERAL - 16)
+#define ABA_A 32
 
 static void mostrar_mensagem(const char *fmt, int r)
 {
     /* r: 1 guardado no pendrive, 0 só até desligar, <0 erro */
     if (r == 1) formatar_texto(recado, sizeof recado, "%s Guardado no pendrive.", fmt);
-    else if (r == 0) formatar_texto(recado, sizeof recado, "%s Sem pendrive: vale até desligar.", fmt);
+    else if (r == 0) formatar_texto(recado, sizeof recado, "%s Vale até desligar.", fmt);
     else formatar_texto(recado, sizeof recado, "%s", fmt);
     g_retangulo(j, X0, A - 36, L - X0 - 10, LETRA_A, COR_FUNDO);
     g_texto(j, X0, A - 36, recado, r < 0 && r != -100 ? 0xB03030 : COR_DESTAQUE);
     jan_mostrar_area(j, X0, A - 36, L - X0 - 10, LETRA_A);
 }
 
+/* Cabeçalho da aba: ícone, nome em negrito e uma linha fina embaixo (H88). */
 static void titulo(const char *t)
 {
-    g_texto(j, X0, 16, t, COR_TEXTO);
-    g_retangulo(j, X0, 36, L - X0 - 20, 1, COR_BORDA);
+    g_icone(j, X0, 12, icones_abas[aba], 20);
+    g_texto(j, X0 + 28, 14, t, COR_TEXTO);
+    g_retangulo(j, X0, 38, L - X0 - 20, 1, 0xD4D9DE);
 }
 
 /* ------------------------------------------------------------ Relógio */
@@ -151,7 +162,7 @@ static void relogio_tratar(const evento_t *e)
 /* "sol" e "mata-atlantica" vieram do pull request #1 (Robson): o Brasil com
  * sol é desenhado pelo kernel; a Mata Atlântica é uma imagem feita por IA. */
 static const char *const fundos[QTD_FUNDOS] = { "brasil", "sol", "mata-atlantica", "mata", "ceu", "noite", "terra" };
-static const char *const nomes_fundos[QTD_FUNDOS] = { "Brasil", "Com sol", "M. Atlântica", "Mata", "Céu", "Noite", "Terra" };
+static const char *const nomes_fundos[QTD_FUNDOS] = { "Brasil", "Com sol", "Atlântica", "Mata", "Céu", "Noite", "Terra" };
 static const uint32_t amostras[QTD_FUNDOS][3] = {
     { 0x0B7A3E, 0xE0B92A, 0x14337E }, { 0x2E8A4A, 0xFFE89A, 0x1C5AA8 }, { 0xE8D49A, 0x5E8A4A, 0x3A7AB8 },
     { 0x0E3B22, 0x2E7D32, 0x0A2416 }, { 0x1E5AA8, 0x6FB3E8, 0xD8EEF8 },
@@ -160,7 +171,9 @@ static const uint32_t amostras[QTD_FUNDOS][3] = {
 #define QTD_TEMAS 4
 static const char *const temas[QTD_TEMAS] = { "escuro", "claro", "mata", "azul" };
 static const char *const nomes_temas[QTD_TEMAS] = { "Escuro", "Claro", "Mata", "Azul" };
-static botao_t b_fundos[QTD_FUNDOS], b_sagui, b_tema, b_barra, b_efeitos;
+static botao_t b_fundos[QTD_FUNDOS], b_sagui, b_tema, b_barra, b_efeitos[3];
+static const char *const efeitos_val[3] = { "auto", "completos", "leves" };
+static const char *const efeitos_nome[3] = { "Automático", "Completos", "Leves" };
 
 static int tema_atual(void)
 {
@@ -178,11 +191,20 @@ static void aparencia_desenhar(void)
     g_texto(j, X0, 52, "Fundo da área de trabalho:", COR_TEXTO);
     for (int i = 0; i < QTD_FUNDOS; i++) {
         int x = X0 + (i % 4) * 100, y = 76 + (i / 4) * 84;
-        for (int k = 0; k < 3; k++) g_retangulo(j, x, y + k * 14, 90, 14, amostras[i][k]);
+        /* H88: a amostra com cantos redondos; a escolhida ganha um contorno azul. */
         bool escolhido = compara_texto(atual, fundos[i]) == 0;
-        g_moldura(j, x - 2, y - 2, 94, 46, escolhido ? COR_SELECAO : COR_BORDA);
-        if (escolhido) g_moldura(j, x - 3, y - 3, 96, 48, COR_SELECAO);
+        g_ret_redondo(j, x, y, 90, 15, 5, amostras[i][0], amostras[i][0]);
+        g_ret_redondo(j, x, y + 28, 90, 14, 5, amostras[i][2], amostras[i][2]);
+        g_retangulo(j, x, y + 8, 90, 26, amostras[i][1]);
+        g_retangulo(j, x, y + 8, 90, 6, amostras[i][0]);
+        g_retangulo(j, x, y + 28, 90, 6, amostras[i][2]);
+        g_contorno_redondo(j, x, y, 90, 42, 5, 0x9AA3AC);
+        if (escolhido) {
+            g_contorno_redondo(j, x - 3, y - 3, 96, 48, 7, COR_SELECAO);
+            g_contorno_redondo(j, x - 2, y - 2, 94, 46, 6, COR_SELECAO);
+        }
         b_fundos[i] = (botao_t){ x, y + 48, 90, 24, nomes_fundos[i], false };
+        b_fundos[i].ativo = escolhido;
         botao_desenhar(j, &b_fundos[i]);
     }
     /* O sagui, o tema e a doca ou a barra de tarefas, lado a lado. */
@@ -190,24 +212,27 @@ static void aparencia_desenhar(void)
     bool mostra = config_ler("aparencia.sagui", v, sizeof v) < 0 || compara_texto(v, "nao") != 0;
     bool tarefas = config_ler("aparencia.barra", v, sizeof v) >= 0 && compara_texto(v, "tarefas") == 0;
     static char rot_tema[24];
-    formatar_texto(rot_tema, sizeof rot_tema, "%s (trocar)", nomes_temas[tema_atual()]);
+    formatar_texto(rot_tema, sizeof rot_tema, "%s", nomes_temas[tema_atual()]);
     g_texto(j, X0, 252, "O sagui:", COR_TEXTO);
-    g_texto(j, X0 + 135, 252, "Tema:", COR_TEXTO);
-    g_texto(j, X0 + 270, 252, "Embaixo:", COR_TEXTO);
-    b_sagui = (botao_t){ X0, 274, 125, 28, mostra ? "Mostrando" : "Escondido", false };
-    b_tema = (botao_t){ X0 + 135, 274, 125, 28, rot_tema, false };
-    b_barra = (botao_t){ X0 + 270, 274, 125, 28, tarefas ? "Barra em cima" : "Doca", false };
+    g_texto(j, X0 + 130, 252, "Tema:", COR_TEXTO);
+    g_texto(j, X0 + 290, 252, "Janelas:", COR_TEXTO);
+    b_sagui = (botao_t){ X0, 274, 120, 28, mostra ? "Mostrando" : "Escondido", false };
+    b_tema = (botao_t){ X0 + 130, 274, 150, 28, rot_tema, false };
+    b_barra = (botao_t){ X0 + 290, 274, 110, 28, tarefas ? "Barra em cima" : "Doca embaixo", false };
     botao_desenhar(j, &b_sagui);
     botao_desenhar(j, &b_tema);
     botao_desenhar(j, &b_barra);
     char efeitos[12];
     if (config_ler("aparencia.efeitos", efeitos, sizeof efeitos) < 0) copia_texto(efeitos, "auto", sizeof efeitos);
+    /* H88: três botões lado a lado, o escolhido marcado (antes era um botão
+     * só com uma frase comprida, que saía para fora dele). */
     g_texto(j, X0, 318, "Efeitos (vidro, sombras, animações):", COR_TEXTO);
-    b_efeitos = (botao_t){ X0, 340, 395, 28,
-                           compara_texto(efeitos, "leves") == 0 ? "Leves (rápido): trocar para automático" :
-                           compara_texto(efeitos, "completos") == 0 ? "Completos: trocar para leves" :
-                           "Automático (pela velocidade): trocar para completos", false };
-    botao_desenhar(j, &b_efeitos);
+    for (int i = 0; i < 3; i++) {
+        b_efeitos[i] = (botao_t){ X0 + i * 136, 340, 128, 28, efeitos_nome[i], false };
+        b_efeitos[i].ativo = compara_texto(efeitos, efeitos_val[i]) == 0;
+        botao_desenhar(j, &b_efeitos[i]);
+    }
+    g_texto(j, X0, 376, "Automático: completos se o computador for rápido.", COR_TEXTO_FRACO);
 }
 
 static void aparencia_redesenhar(const char *msg, int r)
@@ -235,14 +260,14 @@ static void aparencia_tratar(const evento_t *e)
         aparencia_redesenhar(tarefas ? "A doca voltou." : "Janelas na barra de cima.", r);
         return;
     }
-    if (botao_tratar(j, &b_efeitos, e)) {
-        if (config_ler("aparencia.efeitos", v, sizeof v) < 0) copia_texto(v, "auto", sizeof v);
-        const char *novo = compara_texto(v, "auto") == 0 ? "completos" : compara_texto(v, "completos") == 0 ? "leves" : "auto";
-        int r = config_gravar("aparencia.efeitos", novo);
-        registrar("configuracoes: efeitos %s", novo);
-        aparencia_redesenhar("Aparência trocada.", r);
-        return;
-    }
+    for (int i = 0; i < 3; i++)
+        if (botao_tratar(j, &b_efeitos[i], e)) {
+            const char *novo = efeitos_val[i];
+            int r = config_gravar("aparencia.efeitos", novo);
+            registrar("configuracoes: efeitos %s", novo);
+            aparencia_redesenhar("Aparência trocada.", r);
+            return;
+        }
     for (int i = 0; i < QTD_FUNDOS; i++)
         if (botao_tratar(j, &b_fundos[i], e)) {
             int r = config_gravar("aparencia.fundo", fundos[i]);
@@ -380,7 +405,7 @@ static void rede_desenhar(void)
     caixa_com_rotulo(&c_dns, 244, "DNS:", "rede.dns", r.dns);
     b_aplicar_rede = (botao_t){ X0, 284, 140, 28, "Aplicar", false };
     if (rede_manual) botao_desenhar(j, &b_aplicar_rede);
-    b_testar_rede = (botao_t){ X0 + (rede_manual ? 150 : 0), 284, 160, 28, "Testar conexão", false };
+    b_testar_rede = (botao_t){ X0 + (rede_manual ? 150 : 0), 284, 160, 28, "Testar conexão", false, icone_teste };
     botao_desenhar(j, &b_testar_rede);
 }
 
@@ -728,11 +753,22 @@ static void ia_tratar(const evento_t *e)
 static void desenhar_tudo(void)
 {
     g_retangulo(j, 0, 0, L, A, COR_FUNDO);
-    g_retangulo(j, 0, 0, LATERAL, A, 0xE6EAE6);
-    g_retangulo(j, LATERAL, 0, 1, A, COR_BORDA);
+    /* H88: lateral com uma linha por aba (ícone e nome); a aba aberta fica
+     * num cartão branco com um filete verde à esquerda. Antes eram botões
+     * cinza iguais, só texto, e "Sobre o computador" encostava nas bordas. */
+    g_retangulo(j, 0, 0, LATERAL, A, 0xE9EDEA);
+    g_retangulo(j, LATERAL, 0, 1, A, 0xCDD3CF);
     for (int i = 0; i < QTD_ABAS; i++) {
-        botoes_abas[i] = (botao_t){ 10, 16 + i * 40, LATERAL - 20, 30, nomes_abas[i], i == aba };
-        botao_desenhar(j, &botoes_abas[i]);
+        int y = ABA_Y(i);
+        bool sel = i == aba;
+        if (sel) {
+            g_ret_redondo(j, ABA_X, y + 1, ABA_L, ABA_A, 7, 0xC9D2CC, 0xC9D2CC);
+            g_ret_redondo(j, ABA_X, y, ABA_L, ABA_A, 7, COR_BRANCO, COR_BRANCO);
+            g_ret_redondo(j, ABA_X + 3, y + 8, 3, ABA_A - 16, 1, COR_DESTAQUE, COR_DESTAQUE);
+        }
+        g_icone(j, ABA_X + 12, y + (ABA_A - 20) / 2, icones_abas[i], 20);
+        g_texto_cortado(j, ABA_X + 40, y + (ABA_A - LETRA_A) / 2, rotulos_abas[i], ABA_L - 44,
+                        sel ? 0x0B5C30 : COR_TEXTO);
     }
     if (aba == ABA_RELOGIO) relogio_desenhar();
     else if (aba == ABA_APARENCIA) aparencia_desenhar();
@@ -743,8 +779,11 @@ static void desenhar_tudo(void)
     else sobre_desenhar();
     char p[8];
     config_ler("sistema.persistente", p, sizeof p);
-    g_texto(j, 10, A - 54, compara_texto(p, "sim") == 0 ? "Guardando no" : "Sem pendrive:", COR_TEXTO_FRACO);
-    g_texto(j, 10, A - 36, compara_texto(p, "sim") == 0 ? "pendrive." : "até desligar.", COR_TEXTO_FRACO);
+    bool guarda = compara_texto(p, "sim") == 0;
+    g_icone(j, 12, A - 58, guarda ? icone_pendrive : icone_info, 20);
+    g_texto(j, 38, A - 64, guarda ? "Os ajustes" : "Sem pendrive,", COR_TEXTO_FRACO);
+    g_texto(j, 38, A - 46, guarda ? "ficam no" : "os ajustes valem", COR_TEXTO_FRACO);
+    g_texto(j, 38, A - 28, guarda ? "pendrive." : "até desligar.", COR_TEXTO_FRACO);
     jan_mostrar(j);
 }
 
@@ -771,7 +810,8 @@ int principal(int argc, char **argv)
             if (e.tipo == EV_FECHAR) break;
             bool trocou = false;
             for (int i = 0; i < QTD_ABAS; i++)
-                if (botao_tratar(j, &botoes_abas[i], &e) && i != aba) {
+                if (e.tipo == EV_CLIQUE && (e.botoes & 1) && e.x >= ABA_X && e.x < ABA_X + ABA_L &&
+                    e.y >= ABA_Y(i) && e.y < ABA_Y(i) + ABA_A && i != aba) {
                     aba = i;
                     trocou = true;
                     recado[0] = 0;

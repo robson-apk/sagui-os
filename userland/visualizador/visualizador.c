@@ -15,6 +15,7 @@
  * A abre outro arquivo; Esc fecha. */
 #include "sagui.h"
 #include "gui.h"
+#include "icones.h"
 
 bool imagem_decodificar(const uint8_t *d, unsigned n, uint32_t **px, int *l, int *a);   /* navegador/imagens.c */
 
@@ -38,7 +39,7 @@ static char irmaos[MAX_ARQ][64];
 static int qtd_irmaos, indice;
 
 static botao_t bts[7] = {
-    { 8, 4, 64, 26, "Abrir", false }, { 80, 4, 34, 26, "<", false }, { 118, 4, 34, 26, ">", false },
+    { 8, 4, 64, 26, "Abrir", false }, { 80, 4, 34, 26, "", false, icone_anterior }, { 118, 4, 34, 26, "", false, icone_proxima },   /* H88: ícones */
     { 164, 4, 34, 26, "-", false }, { 202, 4, 34, 26, "+", false }, { 244, 4, 70, 26, "Ajustar", false },
     { 318, 4, 52, 26, "100%", false },
 };

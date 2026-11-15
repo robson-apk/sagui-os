@@ -230,3 +230,23 @@ Log cronológico do que foi feito. Uma entrada por bloco de trabalho.
   do visualizador passava da tela em 1024x768 (encolheu); e erros do próprio
   teste (linhas do kernel no meio da saída, o eco do comando fora do lugar,
   os .txt do rootfs em Latin-1 dentro do sistema).
+
+## 2026-11-15 05:00
+
+### H88: revisão do visual
+
+- Vistoria de todos os programas com capturas (`tests/vistoria.py`, fora da
+  suíte). Problemas achados: cantos em escada, moldura preta quadrada em volta
+  do canto redondo nos efeitos leves, cantos de baixo retos, botões da barra de
+  título serrilhados, menu e Configurações sem ícones, texto saindo dos botões.
+  Decisão D049.
+- Bordas suavizadas (`kernel/inc/suave.h`, para o kernel e a libsagui),
+  janelas com os 4 cantos redondos e sombra também nos efeitos leves, brilho no
+  vidro só nos completos. 21 ícones novos (tools/mkarte.py, 20x20 para os
+  programas). Menu do sagui, Configurações, Arquivos, Música, Visualizador e
+  Desligar refeitos.
+- Suíte: 82/83 na primeira rodada; o h74_h77 pegou o brilho do vidro nos
+  efeitos leves (a barra tem de ficar na cor pura). Corrigido, e o h74_h77
+  passou de novo, com h38, h36, h23, h87 e h81. Teste novo `h88_visual`, que
+  mede nos pixels: canto de cima suavizado, canto de baixo redondo, ícones nas
+  7 abas e nos 13 itens do menu, botões de efeitos.

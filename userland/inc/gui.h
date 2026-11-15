@@ -44,6 +44,11 @@ void   g_desenho(jan_t *j, int x, int y, const char *const *linhas, int l, int a
                  uint32_t (*paleta)(char), int escala);   /* paleta devolve 0xFF000000 = transparente */
 void   g_relevo(jan_t *j, int x, int y, int l, int a, bool afundado);
 int    g_largura_texto(const char *t);
+/* H88: formas com borda suavizada, ícones e texto que não passa do espaço. */
+void   g_ret_redondo(jan_t *j, int x, int y, int l, int a, int raio, uint32_t topo, uint32_t base);
+void   g_contorno_redondo(jan_t *j, int x, int y, int l, int a, int raio, uint32_t cor);
+void   g_icone(jan_t *j, int x, int y, const uint32_t *argb, int lado);       /* icones.h: lado 20 */
+void   g_texto_cortado(jan_t *j, int x, int y, const char *t, int max, uint32_t cor);
 #define LETRA_L 8
 #define LETRA_A 16
 
@@ -55,6 +60,9 @@ typedef struct {
     int x, y, l, a;
     const char *texto;
     bool apertado;
+    const uint32_t *icone;    /* H88: ícone de 20x20 (icones.h) antes do texto, ou NULL */
+    bool ativo;               /* H88: marcado (aba escolhida, opção ligada): fundo verde-claro */
+    bool alinhar_esquerda;    /* H88: ícone e texto encostados à esquerda (abas) */
 } botao_t;
 void botao_desenhar(jan_t *j, botao_t *b);
 bool botao_tratar(jan_t *j, botao_t *b, const evento_t *e);   /* true = foi clicado */

@@ -6,6 +6,7 @@
  * programa, e o programa decide quando desenhar e para quem mandar cada
  * evento. É simples de entender e de testar. */
 #include "gui.h"
+#include "suave.h"
 
 extern const unsigned char fonte_sagui[256][16];
 
@@ -57,6 +58,55 @@ void g_moldura(jan_t *j, int x, int y, int l, int a, uint32_t cor)
     g_retangulo(j, x, y + a - 1, l, 1, cor);
     g_retangulo(j, x, y, 1, a, cor);
     g_retangulo(j, x + l - 1, y, 1, a, cor);
+}
+
+/* Área de desenho suavizado (suave.h) que cobre a janela toda. */
+static suave_t sv_de(jan_t *j)
+{
+    suave_t s = { j->px, j->larg, 0, 0, j->larg, j->alt };
+    return s;
+}
+
+/* Cor do pixel (x, y) da janela, ou a cor de fundo se estiver fora. */
+static uint32_t cor_em(jan_t *j, int x, int y)
+{
+    if ((unsigned)x < (unsigned)j->larg && (unsigned)y < (unsigned)j->alt) return j->px[y * j->larg + x] & 0xFFFFFF;
+    return COR_FUNDO;
+}
+
+/* ---- H88: formas com borda suavizada ---- */
+
+void g_ret_redondo(jan_t *j, int x, int y, int l, int a, int raio, uint32_t topo, uint32_t base)
+{
+    suave_t s = sv_de(j);
+    suave_ret(&s, x, y, l, a, raio, topo, base, 256);
+}
+
+void g_contorno_redondo(jan_t *j, int x, int y, int l, int a, int raio, uint32_t cor)
+{
+    suave_t s = sv_de(j);
+    suave_contorno(&s, x, y, l, a, raio, cor, 256);
+}
+
+/* Ícone ARGB (tools/mkarte.py --programas, icones.h): o alfa mistura com o fundo. */
+void g_icone(jan_t *j, int x, int y, const uint32_t *argb, int lado)
+{
+    suave_t s = sv_de(j);
+    for (int v = 0; v < lado; v++)
+        for (int u = 0; u < lado; u++) {
+            uint32_t c = argb[v * lado + u];
+            if (c >> 24) suave_ponto(&s, x + u, y + v, c & 0xFFFFFF, (int)(c >> 24) + ((c >> 24) == 255));
+        }
+}
+
+/* Escreve o texto cortado em max pixels; se não couber, termina em "...". */
+void g_texto_cortado(jan_t *j, int x, int y, const char *t, int max, uint32_t cor)
+{
+    int n = (int)tam_texto(t), cabem = max / LETRA_L;
+    if (n <= cabem) { g_texto(j, x, y, t, cor); return; }
+    if (cabem <= 3) { g_texto_n(j, x, y, t, cabem, cor); return; }
+    g_texto_n(j, x, y, t, cabem - 2, cor);
+    g_texto(j, x + (cabem - 2) * LETRA_L, y, "..", cor);
 }
 
 static inline void ponto(jan_t *j, int x, int y, uint32_t cor)
@@ -162,22 +212,30 @@ void rotulo(jan_t *j, int x, int y, const char *texto, uint32_t cor)
 
 void botao_desenhar(jan_t *j, botao_t *b)
 {
-    /* Degradê com cantos cortados (H81, do Robson). Os pixels dos cantos
-     * ficam como estavam, então o botão serve sobre qualquer fundo. */
-    uint32_t topo = b->apertado ? COR_BOTAO_APERTADO : 0xFBFCFD, base = b->apertado ? 0xD6DBE0 : 0xD8DDE2;
-    for (int k = 0; k < b->a; k++)
-        g_retangulo(j, b->x, b->y + k, b->l, 1, mistura(topo, base, k, b->a > 1 ? b->a - 1 : 1));
-    g_retangulo(j, b->x + 1, b->y - 1, b->l - 2, 1, 0x5A6470);
-    g_retangulo(j, b->x + 1, b->y + b->a, b->l - 2, 1, 0x4A535C);
-    g_retangulo(j, b->x - 1, b->y + 1, 1, b->a - 2, 0x5A6470);
-    g_retangulo(j, b->x + b->l, b->y + 1, 1, b->a - 2, 0x5A6470);
-    ponto(j, b->x, b->y, 0x5A6470);
-    ponto(j, b->x + b->l - 1, b->y, 0x5A6470);
-    ponto(j, b->x, b->y + b->a - 1, 0x5A6470);
-    ponto(j, b->x + b->l - 1, b->y + b->a - 1, 0x5A6470);
-    int tx = b->x + (b->l - g_largura_texto(b->texto)) / 2 + (b->apertado ? 1 : 0);
-    int ty = b->y + (b->a - LETRA_A) / 2 + (b->apertado ? 1 : 0);
-    g_texto(j, tx, ty, b->texto, COR_TEXTO);
+    /* H88: cantos redondos suavizados, degradê claro, contorno fino e, se
+     * houver, o ícone de 20 pixels à esquerda do texto. Antes de pintar, o
+     * retângulo volta à cor do fundo (lida logo à esquerda do botão), para
+     * que redesenhar não vá escurecendo os pixels dos cantos. O texto que
+     * não cabe é cortado com ".." em vez de sair do botão. */
+    uint32_t fundo = cor_em(j, b->x - 2, b->y + b->a / 2);
+    g_retangulo(j, b->x - 1, b->y - 1, b->l + 2, b->a + 2, fundo);
+    suave_t s = sv_de(j);
+    uint32_t topo, base, borda;
+    if (b->ativo && !b->apertado) { topo = 0xE3F2E9; base = 0xCFE8D9; borda = COR_DESTAQUE; }
+    else if (b->apertado)         { topo = 0xD2D9E0; base = 0xDDE3E8; borda = 0x7E8892; }
+    else                          { topo = 0xFFFFFF; base = 0xE6EAEE; borda = 0xA9B2BB; }
+    suave_ret(&s, b->x, b->y + 1, b->l, b->a, 6, 0x000000, 0x000000, 22);     /* sombra de 1 pixel */
+    suave_ret(&s, b->x, b->y, b->l, b->a, 6, topo, base, 256);
+    suave_contorno(&s, b->x, b->y, b->l, b->a, 6, borda, 256);
+    int d = b->apertado ? 1 : 0;
+    int il = b->icone ? 20 + (b->texto && b->texto[0] ? 8 : 0) : 0;
+    int livre = b->l - 12 - il;
+    int tl = b->texto ? g_largura_texto(b->texto) : 0;
+    if (tl > livre) tl = livre / LETRA_L * LETRA_L;
+    int x0 = b->alinhar_esquerda ? b->x + 10 : b->x + (b->l - il - tl) / 2;
+    if (b->icone) g_icone(j, x0 + d, b->y + (b->a - 20) / 2 + d, b->icone, 20);
+    if (b->texto) g_texto_cortado(j, x0 + il + d, b->y + (b->a - LETRA_A) / 2 + d, b->texto, livre,
+                                  b->ativo ? 0x0B5C30 : COR_TEXTO);
     jan_mostrar_area(j, b->x - 1, b->y - 1, b->l + 2, b->a + 2);
 }
 
@@ -208,9 +266,12 @@ void caixa_definir(caixa_t *c, const char *texto)
 void caixa_desenhar(jan_t *j, caixa_t *c)
 {
     int a = LETRA_A + 8;
-    g_retangulo(j, c->x, c->y, c->l, a, COR_BRANCO);
-    g_moldura(j, c->x, c->y, c->l, a, c->foco ? COR_DESTAQUE : COR_BORDA);
-    if (c->foco) g_moldura(j, c->x + 1, c->y + 1, c->l - 2, a - 2, COR_DESTAQUE);
+    /* H88: cantos redondos; com foco, contorno verde de 2 pixels. */
+    g_retangulo(j, c->x, c->y, c->l, a, cor_em(j, c->x - 2, c->y + a / 2));
+    suave_t s = sv_de(j);
+    suave_ret(&s, c->x, c->y, c->l, a, 4, COR_BRANCO, COR_BRANCO, 256);
+    suave_contorno(&s, c->x, c->y, c->l, a, 4, c->foco ? COR_DESTAQUE : 0xA9B2BB, 256);
+    if (c->foco) suave_contorno(&s, c->x + 1, c->y + 1, c->l - 2, a - 2, 3, COR_DESTAQUE, 160);
     int cabem = (c->l - 10) / LETRA_L;
     int ini = c->cursor > cabem ? c->cursor - cabem : 0;
     g_texto_n(j, c->x + 5, c->y + 4, c->texto + ini, cabem, COR_TEXTO);
@@ -336,7 +397,7 @@ void area_desenhar(jan_t *j, area_t *a)
 {
     int texto_l = a->l - BARRA_ROLAGEM;
     g_retangulo(j, a->x, a->y, a->l, a->a, COR_BRANCO);
-    g_moldura(j, a->x, a->y, a->l, a->a, a->foco ? COR_DESTAQUE : COR_BORDA);
+    g_moldura(j, a->x, a->y, a->l, a->a, a->foco ? COR_DESTAQUE : 0xA9B2BB);
     int vis = area_linhas_visiveis(a), cabem = (texto_l - 10) / LETRA_L;
     int lin_cur, col_cur;
     linha_coluna(a, a->cursor, &lin_cur, &col_cur);
@@ -351,12 +412,12 @@ void area_desenhar(jan_t *j, area_t *a)
     }
     /* Barra de rolagem: o "polegar" mostra que parte do texto está à vista. */
     int bx = a->x + a->l - BARRA_ROLAGEM, total = total_linhas(a);
-    g_retangulo(j, bx, a->y + 1, BARRA_ROLAGEM - 1, a->a - 2, 0xE4E7EA);
+    g_retangulo(j, bx, a->y + 1, BARRA_ROLAGEM - 1, a->a - 2, 0xF0F2F4);
     int trilho = a->a - 4;
     int pol_a = total <= vis ? trilho : trilho * vis / total;
     if (pol_a < 12) pol_a = 12;
     int pol_y = total <= vis ? 0 : (trilho - pol_a) * a->topo / (total - vis > 0 ? total - vis : 1);
-    g_retangulo(j, bx + 2, a->y + 2 + pol_y, BARRA_ROLAGEM - 5, pol_a, 0x9AA3AC);
+    if (total > vis) g_ret_redondo(j, bx + 3, a->y + 2 + pol_y, BARRA_ROLAGEM - 7, pol_a, 3, 0xA9B2BB, 0xA9B2BB);
     jan_mostrar_area(j, a->x, a->y, a->l, a->a);
 }
 
@@ -444,12 +505,12 @@ bool area_tratar(jan_t *j, area_t *a, const evento_t *e)
 void lista_desenhar(jan_t *j, lista_t *l)
 {
     g_retangulo(j, l->x, l->y, l->l, l->a, COR_BRANCO);
-    g_moldura(j, l->x, l->y, l->l, l->a, COR_BORDA);
+    g_moldura(j, l->x, l->y, l->l, l->a, 0xA9B2BB);
     int vis = (l->a - 4) / LISTA_ALTURA_ITEM;
     for (int k = 0; k < vis && l->topo + k < l->qtd; k++) {
         int i = l->topo + k, y = l->y + 2 + k * LISTA_ALTURA_ITEM;
         bool sel = i == l->sel;
-        if (sel) g_retangulo(j, l->x + 2, y, l->l - 4, LISTA_ALTURA_ITEM, COR_SELECAO);
+        if (sel) g_ret_redondo(j, l->x + 3, y, l->l - 6 - (l->qtd > vis ? 6 : 0), LISTA_ALTURA_ITEM, 4, COR_SELECAO, COR_SELECAO);
         int tx = l->x + 6;
         if (l->icone) { l->icone(j, tx, y + 2, i); tx += 22; }
         g_texto_n(j, tx, y + 2, l->itens[i], (l->x + l->l - tx - 4) / LETRA_L, sel ? COR_BRANCO : COR_TEXTO);
@@ -457,7 +518,7 @@ void lista_desenhar(jan_t *j, lista_t *l)
     if (l->qtd > vis) {   /* indicador simples de que há mais itens */
         int total = l->qtd, trilho = l->a - 4;
         int pol_a = trilho * vis / total, pol_y = (trilho - pol_a) * l->topo / (total - vis);
-        g_retangulo(j, l->x + l->l - 6, l->y + 2 + pol_y, 4, pol_a, 0x9AA3AC);
+        g_ret_redondo(j, l->x + l->l - 7, l->y + 2 + pol_y, 5, pol_a, 2, 0xA9B2BB, 0xA9B2BB);
     }
     jan_mostrar_area(j, l->x, l->y, l->l, l->a);
 }

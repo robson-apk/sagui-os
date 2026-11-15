@@ -112,7 +112,7 @@ class Tela:
                         xx, yy = x + i, y + j - d
                         if 0 <= xx < T and 0 <= yy < T:
                             soma += alfa[yy][xx]
-                s = soma / 25 * 0.42
+                s = soma / 25 * (0.42 if T >= 40 else 0.22)
                 r, g, b, f = self.p[y][x]
                 a = f + s * (1 - f)
                 if a <= 0:
@@ -260,28 +260,221 @@ def instalado(t):
     t.poligono(estrela, vertical(0xFFE35A, 0xF2B21C, 25, 51))
 
 
+# ---- H88: ícones novos (programas do H87 e o desligar) ----
+
+def monitor(t):
+    """Sagui Monitor: um painel escuro com o gráfico da CPU subindo."""
+    t.ret(5, 9, 59, 51, 6, vertical(0x3A4552, 0x1E252E, 9, 51))
+    t.ret(9, 13, 55, 47, 3, vertical(0x13202A, 0x0C141B, 13, 47))
+    for k in range(4):
+        t.traco([(12, 20 + k * 8), (52, 20 + k * 8)], 0.8, 0xFFFFFF, 0.12)
+    t.poligono([(12, 44), (12, 36), (21, 30), (29, 34), (38, 22), (46, 26), (52, 18), (52, 44)],
+               vertical(0x42E584, 0x0B7A3E, 18, 44), 0.35)
+    t.traco([(12, 36), (21, 30), (29, 34), (38, 22), (46, 26), (52, 18)], 2.8, 0x42E584)
+    t.ret(27, 51, 37, 55, 0, 0x3C4550)
+    t.ret(19, 55, 45, 59, 2, vertical(0x6A7582, 0x444D58, 55, 59))
+
+
+def visualizador(t):
+    """Visualizador de imagens: uma foto com céu, sol e montanhas."""
+    t.ret(5, 10, 59, 54, 6, vertical(0xFFFFFF, 0xDDE3E8, 10, 54))
+    t.ret(9, 14, 55, 50, 3, vertical(0x7CC8F4, 0xC8ECFF, 14, 50))
+    t.disco(43, 24, 5, 0xFFD23E)
+    t.poligono([(9, 50), (9, 42), (23, 27), (36, 41), (42, 35), (55, 47), (55, 50)], vertical(0x2E9E5B, 0x16683A, 27, 50))
+    t.poligono([(23, 27), (27.5, 31.6), (24.5, 33), (21, 30.6)], 0xFFFFFF, 0.85)
+
+
+def musica(t):
+    """Música: um disco com uma nota musical."""
+    t.disco(32, 32, 26, vertical(0xFF7A59, 0xC2185B, 6, 58))
+    t.disco(32, 32, 26, 0xFFFFFF, 0.08)
+    t.traco([(27, 44), (27, 18), (44, 14), (44, 39)], 3.6, 0xFFFFFF)
+    t.traco([(27, 22.5), (44, 18.5)], 3.6, 0xFFFFFF)
+    t.disco(22.5, 44, 5.5, 0xFFFFFF, ry=4.6)
+    t.disco(39.5, 39.5, 5.5, 0xFFFFFF, ry=4.6)
+
+
+def energia(t):
+    """Desligar: o símbolo de liga/desliga num disco vermelho."""
+    t.disco(32, 32, 26, vertical(0xF0645A, 0xB82820, 6, 58))
+    pts = [(32 + 14 * math.cos(a), 33 + 14 * math.sin(a)) for a in
+           (-math.pi / 2 + 0.75 + k * (2 * math.pi - 1.5) / 30 for k in range(31))]
+    t.traco(pts, 4.2, 0xFFFFFF)
+    t.traco([(32, 13), (32, 30)], 4.2, 0xFFFFFF)
+
+
+# ---- H88: ícones da interface (só no tamanho pequeno, para os programas) ----
+
+def ui_relogio(t):
+    t.disco(32, 32, 26, vertical(0x5AA9F0, 0x1F5FB8, 6, 58))
+    t.disco(32, 32, 20, 0xFFFFFF)
+    for k in range(12):
+        a = k * math.pi / 6
+        t.traco([(32 + 15 * math.cos(a), 32 + 15 * math.sin(a)), (32 + 18 * math.cos(a), 32 + 18 * math.sin(a))], 2, 0x7A8794)
+    t.traco([(32, 32), (32, 18)], 3.4, 0x1E2328)
+    t.traco([(32, 32), (42, 37)], 3.4, 0x1E2328)
+    t.disco(32, 32, 3, 0xD8564B)
+
+
+def ui_aparencia(t):
+    t.disco(32, 32, 26, vertical(0xF4E2C4, 0xD9B98A, 6, 58))
+    t.disco(40, 42, 7, 0xFFFFFF, 0.9)
+    for (x, y, c) in ((20, 24, 0xE0483E), (32, 16, 0xF2B21C), (45, 22, 0x2E9E5B), (19, 39, 0x2A6FD8)):
+        t.disco(x, y, 5.5, c)
+
+
+def ui_som(t):
+    t.poligono([(8, 24), (19, 24), (32, 12), (32, 52), (19, 40), (8, 40)], vertical(0x5A6674, 0x2B333C, 12, 52))
+    for r in (11, 19):
+        pts = [(30 + r * math.cos(a), 32 + r * math.sin(a)) for a in (-0.8 + k * 1.6 / 16 for k in range(17))]
+        t.traco(pts, 3.6, 0x2A6FD8)
+
+
+def ui_rede(t):
+    t.disco(32, 32, 26, vertical(0x4FC27E, 0x13854A, 6, 58))
+    t.traco([(9, 32), (55, 32)], 2.4, 0xFFFFFF, 0.85)
+    t.traco([(32 + 10 * math.sin(k / 10 * math.pi), 7 + k * 2.5) for k in range(21)], 2.4, 0xFFFFFF, 0.85)
+    t.traco([(32 - 10 * math.sin(k / 10 * math.pi), 7 + k * 2.5) for k in range(21)], 2.4, 0xFFFFFF, 0.85)
+    t.traco([(32, 7), (32, 57)], 2.4, 0xFFFFFF, 0.85)
+    t.traco([(13, 19), (51, 19)], 2.2, 0xFFFFFF, 0.6)
+    t.traco([(13, 45), (51, 45)], 2.2, 0xFFFFFF, 0.6)
+
+
+def ui_programas(t):
+    cores = (0x2A6FD8, 0x2E9E5B, 0xF2B21C, 0xE0483E)
+    for k, c in enumerate(cores):
+        x, y = 7 + (k % 2) * 27, 7 + (k // 2) * 27
+        t.ret(x, y, x + 23, y + 23, 6, c)
+
+
+def ui_info(t):
+    t.disco(32, 32, 26, vertical(0x5AA9F0, 0x1F5FB8, 6, 58))
+    t.disco(32, 19, 4, 0xFFFFFF)
+    t.ret(28, 27, 36, 48, 2.5, 0xFFFFFF)
+
+
+def ui_ia(t):
+    def brilho(cx, cy, r, cor):
+        pts = []
+        for k in range(8):
+            rr = r if k % 2 == 0 else r * 0.28
+            a = -math.pi / 2 + k * math.pi / 4
+            pts.append((cx + rr * math.cos(a), cy + rr * math.sin(a)))
+        t.poligono(pts, cor)
+    brilho(28, 36, 22, vertical(0xB57BFF, 0x6A3BD8, 14, 58))
+    brilho(48, 15, 10, vertical(0xFFD23E, 0xF2A21C, 5, 25))
+
+
+def ui_pendrive(t):
+    pendrive(t)
+
+
+def ui_pasta(t):
+    arquivos(t)
+
+
+def ui_lixeira(t):
+    t.ret(12, 12, 52, 19, 2.5, vertical(0x8794A2, 0x5A6674, 12, 19))
+    t.ret(25, 6, 39, 13, 2, 0x5A6674)
+    t.poligono([(15, 21), (49, 21), (46, 58), (18, 58)], vertical(0xB9C2CB, 0x7A8794, 21, 58))
+    for x in (25, 32, 39):
+        t.traco([(x, 27), (x, 52)], 2.6, 0x4B5560, 0.7)
+
+
+def ui_voltar(t):
+    t.traco([(48, 32), (16, 32)], 6, 0x3A4450)
+    t.traco([(30, 17), (15, 32), (30, 47)], 6, 0x3A4450)
+
+
+def ui_nova_pasta(t):
+    arquivos(t)
+    t.disco(47, 47, 12, 0x2E9E5B)
+    t.traco([(47, 40), (47, 54)], 3.4, 0xFFFFFF)
+    t.traco([(40, 47), (54, 47)], 3.4, 0xFFFFFF)
+
+
+def ui_apagar(t):
+    t.disco(32, 32, 26, vertical(0xF0645A, 0xB82820, 6, 58))
+    t.traco([(22, 22), (42, 42)], 5, 0xFFFFFF)
+    t.traco([(42, 22), (22, 42)], 5, 0xFFFFFF)
+
+
+def ui_restaurar(t):
+    pts = [(32 + 19 * math.cos(a), 34 + 19 * math.sin(a)) for a in
+           (-math.pi * 0.95 + k * math.pi * 1.6 / 24 for k in range(25))]
+    t.traco(pts, 5.5, 0x2E9E5B)
+    t.poligono([(4, 26), (24, 26), (12, 42)], 0x2E9E5B)
+
+
+def ui_tocar(t):
+    t.poligono([(18, 10), (54, 32), (18, 54)], 0x2B333C)
+
+
+def ui_pausar(t):
+    t.ret(16, 10, 28, 54, 3, 0x2B333C)
+    t.ret(36, 10, 48, 54, 3, 0x2B333C)
+
+
+def ui_anterior(t):
+    t.ret(10, 12, 17, 52, 2, 0x2B333C)
+    t.poligono([(54, 12), (20, 32), (54, 52)], 0x2B333C)
+
+
+def ui_proxima(t):
+    t.ret(47, 12, 54, 52, 2, 0x2B333C)
+    t.poligono([(10, 12), (44, 32), (10, 52)], 0x2B333C)
+
+
+def ui_teste(t):
+    t.disco(32, 32, 26, vertical(0x4FC27E, 0x13854A, 6, 58))
+    t.traco([(19, 33), (28, 42), (45, 22)], 5.5, 0xFFFFFF)
+
+
+def ui_relogio_rede(t):
+    ui_rede(t)
+
+
 ICONES = [("arquivos", arquivos), ("terminal", terminal), ("editor", editor), ("calculadora", calculadora),
           ("banana", banana), ("sagui3d", sagui3d), ("sobre", sobre), ("pendrive", pendrive),
-          ("configuracoes", configuracoes), ("cipo", cipo), ("instalado", instalado)]
-TAMANHOS = [(64, ""), (40, "_40")]
+          ("configuracoes", configuracoes), ("cipo", cipo), ("instalado", instalado),
+          ("monitor", monitor), ("visualizador", visualizador), ("musica", musica), ("energia", energia)]
+TAMANHOS = [(64, ""), (40, "_40"), (20, "_20")]
+# Os programas recebem só o tamanho 20 (libsagui, icones.h): os ícones dos
+# programas e os da interface, com o prefixo icone_.
+INTERFACE = [("relogio", ui_relogio), ("aparencia", ui_aparencia), ("som", ui_som), ("rede", ui_rede),
+             ("programas", ui_programas), ("info", ui_info), ("ia", ui_ia), ("lixeira", ui_lixeira),
+             ("voltar", ui_voltar), ("nova_pasta", ui_nova_pasta), ("apagar", ui_apagar),
+             ("restaurar", ui_restaurar), ("tocar", ui_tocar), ("pausar", ui_pausar),
+             ("anterior", ui_anterior), ("proxima", ui_proxima), ("teste", ui_teste)]
+
+
+def escrever(f, nome, desenhar):
+    t = Tela()
+    desenhar(t)
+    px = t.com_sombra()
+    f.write(f"const uint32_t {nome}[{T * T}] = {{\n")
+    for k in range(0, len(px), 8):
+        f.write("    " + ", ".join(f"0x{v:08X}" for v in px[k:k + 8]) + ",\n")
+    f.write("};\n\n")
 
 
 def main():
+    global T
+    if len(sys.argv) == 3 and sys.argv[1] == "--programas":
+        T = 20
+        with open(sys.argv[2], "w", encoding="utf-8") as f:
+            f.write("/* Gerado por tools/mkarte.py --programas. Não edite. */\n#include <stdint.h>\n\n")
+            for nome, desenhar in ICONES + INTERFACE:
+                escrever(f, "icone_" + nome, desenhar)
+        return
     if len(sys.argv) != 2:
-        sys.exit("uso: mkarte.py <saida.c>")
+        sys.exit("uso: mkarte.py <saida.c> | mkarte.py --programas <saida.c>")
     with open(sys.argv[1], "w", encoding="utf-8") as f:
         f.write("/* Gerado por tools/mkarte.py. Não edite. */\n#include \"arte.h\"\n\n")
-        global T
         for tam, sufixo in TAMANHOS:
             T = tam
             for nome, desenhar in ICONES:
-                t = Tela()
-                desenhar(t)
-                px = t.com_sombra()
-                f.write(f"const uint32_t arte_px_{nome}{sufixo}[{T * T}] = {{\n")
-                for k in range(0, len(px), 8):
-                    f.write("    " + ", ".join(f"0x{v:08X}" for v in px[k:k + 8]) + ",\n")
-                f.write("};\n\n")
+                escrever(f, f"arte_px_{nome}{sufixo}", desenhar)
 
 
 if __name__ == "__main__":

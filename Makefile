@@ -48,12 +48,15 @@ ROOTFS     := $(shell find rootfs -type f | sort)
 # instruções que exigem alinhamento. Cada função alinha a própria pilha ao
 # entrar, então uma pilha trocada à mão (motor, JavaScript, compilador) não
 # derruba o programa num movdqa, mesmo quando quem chama é código da libsagui.
+# H88: botao_t ganhou campos no fim (ícone, ativo); quem escreve { x, y, l, a,
+# texto } deixa o resto em zero, que é o certo, então o aviso fica desligado.
 UCFLAGS := -m32 -march=i686 -msse2 -mfpmath=sse -std=gnu11 -O2 \
            -mstackrealign \
            -ffreestanding -fno-builtin -nostdlib -fno-pic -fno-pie \
            -fno-stack-protector -fno-asynchronous-unwind-tables \
            -ffunction-sections -fdata-sections \
            -Wall -Wextra -Werror=implicit-function-declaration \
+           -Wno-missing-field-initializers \
            -finput-charset=UTF-8 -fexec-charset=ISO-8859-1 \
            -Iuserland/inc -idirafter kernel/inc
 ULDFLAGS := -m elf_i386 -nostdlib -T userland/programa.ld --gc-sections -z max-page-size=4096 \
@@ -61,7 +64,7 @@ ULDFLAGS := -m elf_i386 -nostdlib -T userland/programa.ld --gc-sections -z max-p
 # A criptografia (H50-H52) e o TLS (H53) entram na libsagui; só o que cada
 # programa usa vai para ele (--gc-sections).
 CRIPTO_OBJ := $(patsubst userland/%.c,$(B)/userland/%.o,$(wildcard userland/cripto/*.c) $(wildcard userland/tls/*.c) $(wildcard userland/ssh/*.c))
-LIBSAGUI_OBJ := $(CRIPTO_OBJ) $(B)/userland/fonte8x16.o \
+LIBSAGUI_OBJ := $(CRIPTO_OBJ) $(B)/userland/fonte8x16.o $(B)/userland/icones.o \
                 $(patsubst userland/libsagui/%.c,$(B)/userland/libsagui/%.o,$(wildcard userland/libsagui/*.c)) \
                 $(patsubst userland/libsagui/%.asm,$(B)/userland/libsagui/%.asm.o,$(wildcard userland/libsagui/*.asm))
 USER_HDR  := $(wildcard userland/inc/*.h) $(wildcard userland/cripto/*.h) $(wildcard userland/tls/*.h) $(wildcard userland/ssh/*.h) kernel/inc/abi.h
@@ -139,6 +142,15 @@ $(B)/gerado/arte_icones.c: tools/mkarte.py
 
 $(B)/gerado/arte_icones.o: $(B)/gerado/arte_icones.c kernel/inc/arte.h
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+# H88: os mesmos ícones, em 20x20, para os programas (userland/inc/icones.h).
+$(B)/gerado/icones_programas.c: tools/mkarte.py
+	@mkdir -p $(dir $@)
+	$(PY) tools/mkarte.py --programas $@
+
+$(B)/userland/icones.o: $(B)/gerado/icones_programas.c userland/inc/icones.h
+	@mkdir -p $(dir $@)
+	$(CC) $(UCFLAGS) -c -o $@ $<
 
 $(B)/kernel.elf: $(KERNEL_OBJ) kernel/ligacao.ld
 	$(LD) $(LDFLAGS) -T kernel/ligacao.ld -o $@ $(KERNEL_OBJ)
