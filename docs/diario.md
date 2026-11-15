@@ -214,3 +214,19 @@ Log cronológico do que foi feito. Uma entrada por bloco de trabalho.
 ## 2026-11-04 00:19
 
 - **Confirmação do Eli:** "Funcionou tudo perfeitamente". Fase bônus (B3 bip e B4 Sagui 3D) aprovada; a foto enviada é da VM (`testes_eli/fase_bonus_vm.png`).
+
+## 2026-11-14 23:00
+
+### H87: programas úteis
+
+- Comandos novos no terminal: `head`, `tail`, `sort`, `uniq`, `find`, `du`,
+  `less`, `hexdump`, `tar`, `zip`, `unzip` e `captura`. Programas novos em
+  janela: Visualizador de imagens e Música (no menu do sagui). O Arquivos
+  ganhou a lixeira e abre imagens, músicas e .zip nos programas certos; a aba
+  Rede das Configurações ganhou "Testar conexão". Decisão D048.
+- Teste novo `h87_utilitarios` (e `h87b_testar_rede`). No caminho apareceram:
+  a FAT lista na ordem de gravação (o visualizador e a música agora ordenam
+  pelo nome); o zoom pulava de 100% para 126% (passos de 25% agora); a janela
+  do visualizador passava da tela em 1024x768 (encolheu); e erros do próprio
+  teste (linhas do kernel no meio da saída, o eco do comando fora do lugar,
+  os .txt do rootfs em Latin-1 dentro do sistema).

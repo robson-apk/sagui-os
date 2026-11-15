@@ -80,6 +80,14 @@ PROGRAMAS += $(B)/userland/bin/navegador $(B)/userland/bin/cipo
 # O tocador de vídeo (H82): MP4 com H.264 e AAC, do pull request #6.
 VIDEO_OBJ := $(patsubst %.c,$(B)/nav/%.o,$(wildcard userland/video/*.c))
 PROGRAMAS += $(B)/userland/bin/video
+# H87: o visualizador de imagens usa os decodificadores do Cipó, o tocador de
+# música o MP4 e o AAC do tocador de vídeo, e o unzip o DEFLATE do Cipó.
+IMAGENS_OBJ := $(patsubst %.c,$(B)/nav/%.o,userland/navegador/imagens.c userland/navegador/png.c \
+                 userland/navegador/jpeg.c userland/navegador/descompactar.c terceiros/libwebp-vp8/vp8.c)
+VISUALIZADOR_OBJ := $(B)/nav/userland/visualizador/visualizador.o $(IMAGENS_OBJ)
+MUSICA_OBJ := $(B)/nav/userland/musica/musica.o $(B)/nav/userland/video/mp4.o $(B)/nav/userland/video/aac.o
+UNZIP_OBJ := $(B)/nav/userland/unzip/unzip.o $(B)/nav/userland/navegador/descompactar.o
+PROGRAMAS += $(B)/userland/bin/visualizador $(B)/userland/bin/musica $(B)/userland/bin/unzip
 # O Sagui Code (fase 8).
 SAGUICODE_OBJ := $(patsubst userland/saguicode/%.c,$(B)/userland/saguicode/%.o,$(wildcard userland/saguicode/*.c))
 PROGRAMAS += $(B)/userland/bin/saguicode
@@ -189,6 +197,33 @@ $(B)/nav/userland/video/%.o: userland/video/%.c $(wildcard userland/video/*.h te
 $(B)/userland/bin/video: $(VIDEO_OBJ) $(LIBSAGUI_OBJ) userland/programa.ld
 	@mkdir -p $(dir $@)
 	$(LD) $(ULDFLAGS) -o $@.elf $(VIDEO_OBJ) $(LIBSAGUI_OBJ)
+	objcopy --strip-all $@.elf $@
+
+$(B)/nav/userland/visualizador/%.o: userland/visualizador/%.c $(USER_HDR) userland/inc/compactar.h $(wildcard userland/video/*.h)
+	@mkdir -p $(dir $@)
+	$(CC) $(NAV_CFLAGS) -c -o $@ $<
+
+$(B)/nav/userland/musica/%.o: userland/musica/%.c $(USER_HDR) userland/inc/compactar.h $(wildcard userland/video/*.h)
+	@mkdir -p $(dir $@)
+	$(CC) $(NAV_CFLAGS) -c -o $@ $<
+
+$(B)/nav/userland/unzip/%.o: userland/unzip/%.c $(USER_HDR) userland/inc/compactar.h $(wildcard userland/video/*.h)
+	@mkdir -p $(dir $@)
+	$(CC) $(NAV_CFLAGS) -c -o $@ $<
+
+$(B)/userland/bin/visualizador: $(VISUALIZADOR_OBJ) $(LIBSAGUI_OBJ) userland/programa.ld
+	@mkdir -p $(dir $@)
+	$(LD) $(ULDFLAGS) -o $@.elf $(VISUALIZADOR_OBJ) $(LIBSAGUI_OBJ)
+	objcopy --strip-all $@.elf $@
+
+$(B)/userland/bin/musica: $(MUSICA_OBJ) $(LIBSAGUI_OBJ) userland/programa.ld
+	@mkdir -p $(dir $@)
+	$(LD) $(ULDFLAGS) -o $@.elf $(MUSICA_OBJ) $(LIBSAGUI_OBJ)
+	objcopy --strip-all $@.elf $@
+
+$(B)/userland/bin/unzip: $(UNZIP_OBJ) $(LIBSAGUI_OBJ) userland/programa.ld
+	@mkdir -p $(dir $@)
+	$(LD) $(ULDFLAGS) -o $@.elf $(UNZIP_OBJ) $(LIBSAGUI_OBJ)
 	objcopy --strip-all $@.elf $@
 
 # /bin/cipo é o mesmo programa com o nome novo (H82).

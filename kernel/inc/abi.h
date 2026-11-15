@@ -76,6 +76,7 @@
 #define SIS_REDE_ESTADO    74   /* (socket TCP) -> 0 conectando, 1 aberta, 2 o outro lado terminou; <0 falhou (H48) */
 #define SIS_JANELA_OPCOES  76   /* (id, opções, larg_min | alt_min << 16) -> 0 (H78) */
 #define SIS_MENU_JANELA    77   /* (id, x | y << 16, "Item|Item|Item") -> abre um menu na janela; a escolha chega em EV_MENU (H81) */
+#define SIS_LER_TELA       78   /* (&pixels, bytes) -> largura | altura << 16; copia a tela (0x00RRGGBB) se couber (H87) */
 #define SIS_MAX            128   /* espaço para as chamadas da versão 2.0 */
 
 /* Erros (sempre negativos) */
@@ -275,6 +276,7 @@ typedef struct {
 #define TECLA_INSERT    0x108
 #define TECLA_DELETE    0x109
 #define TECLA_ESC       0x116
+#define TECLA_IMPRIMIR  0x117   /* Print Screen (H87): o gerenciador de janelas abre o /bin/captura */
 #endif
 
 #define JANELA_LARG_MAX 1000

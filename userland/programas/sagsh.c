@@ -82,6 +82,21 @@ static const comando_t comandos[] = {
     { "sagui3d", NULL, false, true, "jogo em 3D", "sagui3d [fase]", "Abre o jogo Sagui 3D (ou só uma fase, dando o arquivo)." },
     { "triangulos", NULL, false, true, "teste de desenho", "triangulos", "Triângulos girando em 3D, com os quadros por segundo: mede a velocidade do desenho. +/- muda a quantidade." },
     { "chuva", NULL, false, true, "chuva de letras", "chuva", "Abre uma janela com letras verdes caindo. Espaço pausa; Esc fecha." },
+    /* H87: comandos de texto, pacotes e compressão */
+    { "head", "inicio", false, false, "começo do arquivo", "head [-n N] [arquivo]", "Mostra as primeiras linhas (padrão: 10) de um arquivo ou da entrada." },
+    { "tail", "final", false, false, "fim do arquivo", "tail [-n N] [arquivo]", "Mostra as últimas linhas (padrão: 10) de um arquivo ou da entrada." },
+    { "sort", "ordenar", false, false, "ordena linhas", "sort [-r] [-n] [-u] [arquivo]", "Ordena as linhas. -r ao contrário, -n pelo número, -u sem repetidas (ex.: ls bin | sort -r)." },
+    { "uniq", "unicas", false, false, "tira repetidas", "uniq [-c] [-d] [arquivo]", "Tira as linhas repetidas seguidas (use depois do sort). -c conta, -d só as repetidas." },
+    { "find", "achar", false, false, "procura arquivos", "find [pasta] [-name padrão] [-type f|d]", "Procura arquivos e pastas pelo nome, descendo nas pastas. O padrão aceita * e ? (ex.: find / -name \"*.txt\")." },
+    { "du", "ocupa", false, false, "tamanho de pastas", "du [-s] [pasta...]", "Quanto cada pasta ocupa, somando os arquivos de dentro, em KB. -s mostra só o total." },
+    { "less", "paginar", false, false, "lê página a página", "less arquivo", "Mostra um arquivo uma tela por vez. Espaço/b descem e sobem, setas uma linha, /texto procura, n próximo, q sai." },
+    { "hexdump", "hexa", false, false, "bytes em hexa", "hexdump [-n bytes] [arquivo]", "Mostra os bytes em hexadecimal e em texto, 16 por linha." },
+    { "tar", "pacote", false, false, "pacotes .tar", "tar cf|tf|xf pacote.tar [coisas...]", "Junta arquivos e pastas num .tar (c), lista (t) ou extrai (x). Com v mostra cada arquivo (ex.: tar cvf a.tar pasta)." },
+    { "zip", NULL, false, false, "comprime em .zip", "zip [-q] pacote.zip arquivo|pasta...", "Comprime arquivos e pastas num .zip (deflate), que abre em qualquer sistema." },
+    { "unzip", NULL, false, false, "extrai um .zip", "unzip pacote.zip [-d pasta] [-l]", "Extrai um .zip na pasta atual (ou em -d pasta); -l só lista. Confere o CRC de cada arquivo." },
+    { "captura", NULL, false, false, "salva a tela", "captura [arquivo.png]", "Salva a tela num PNG. A tecla Print Screen faz o mesmo e guarda em /usb/Capturas (com pendrive) ou /capturas." },
+    { "visualizador", NULL, false, true, "mostra imagens", "visualizador [imagem]", "Abre imagens PNG, JPEG, GIF, WebP e BMP. +/- zoom, 0 ajusta, setas passam para a próxima da pasta." },
+    { "musica", NULL, false, true, "tocador de música", "musica [arquivo ou pasta...]", "Toca WAV e M4A (AAC) numa janela, com lista, pausa, avanço e volume. Sem nada, abre a pasta /sons." },
     { "sagui-monitor", NULL, false, true, "monitor em janela", "sagui-monitor", "Abre o Sagui Monitor numa janela: CPU, memória e processos. P, M e N ordenam; setas escolhem; Q ou Esc fecha." },
 };
 #define QTD_COMANDOS (int)(sizeof comandos / sizeof comandos[0])

@@ -180,6 +180,7 @@ void teclado_byte(uint8_t b)
     if (ext) {
         if (sc == 0x1C) { caractere('\n'); return; }   /* Enter do teclado numérico */
         if (sc == 0x35) { caractere('/'); return; }    /* / do teclado numérico */
+        if (sc == 0x37) { guardar(TECLA_IMPRIMIR); return; }   /* Print Screen (E0 2A E0 37) */
         int n = navegacao(sc);
         if (n) guardar(n);
         return;

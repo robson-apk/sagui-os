@@ -336,7 +336,7 @@ static void som_tratar(const evento_t *e)
 /* ------------------------------------------------------------ Rede (H47) */
 
 static caixa_t c_ip, c_masc, c_rot, c_dns;
-static botao_t b_modo, b_aplicar_rede;
+static botao_t b_modo, b_aplicar_rede, b_testar_rede;   /* testar: H87 */
 static bool rede_manual;
 
 static void rede_estado_desenhar(void)
@@ -380,6 +380,52 @@ static void rede_desenhar(void)
     caixa_com_rotulo(&c_dns, 244, "DNS:", "rede.dns", r.dns);
     b_aplicar_rede = (botao_t){ X0, 284, 140, 28, "Aplicar", false };
     if (rede_manual) botao_desenhar(j, &b_aplicar_rede);
+    b_testar_rede = (botao_t){ X0 + (rede_manual ? 150 : 0), 284, 160, 28, "Testar conexão", false };
+    botao_desenhar(j, &b_testar_rede);
+}
+
+/* H87: testa a internet em dois passos, cada um com o tempo: o DNS acha o
+ * endereço de um nome, e uma conexão TCP na porta 80 desse endereço abre. */
+static void rede_testar(void)
+{
+    static const char *const nome = "example.com";
+    char t[120], ipt[16];
+    int y = 324;
+    g_retangulo(j, X0, y, L - X0 - 10, 40, COR_FUNDO);
+    g_texto(j, X0, y, "Testando...", COR_TEXTO_FRACO);
+    jan_mostrar_area(j, X0, y, L - X0 - 10, 40);
+    info_rede_t r;
+    if (rede_info(&r) < 0 || !r.cabo || !r.configurado) {
+        g_retangulo(j, X0, y, L - X0 - 10, 40, COR_FUNDO);
+        g_texto(j, X0, y, "Sem rede: placa, cabo ou endereço faltando.", 0xC0392B);
+        jan_mostrar_area(j, X0, y, L - X0 - 10, 40);
+        registrar("configuracoes: teste de rede: sem rede");
+        return;
+    }
+    unsigned t0 = tempo_ms();
+    unsigned ip = 0;
+    int d = dns_resolver(nome, &ip);
+    unsigned t_dns = tempo_ms() - t0;
+    g_retangulo(j, X0, y, L - X0 - 10, 40, COR_FUNDO);
+    if (d < 0) {
+        formatar_texto(t, sizeof t, "DNS falhou para %s (%s).", nome, nome_erro(d));
+        g_texto(j, X0, y, t, 0xC0392B);
+        jan_mostrar_area(j, X0, y, L - X0 - 10, 40);
+        registrar("configuracoes: teste de rede: dns falhou (%d)", d);
+        return;
+    }
+    ip_para_texto(ip, ipt);
+    formatar_texto(t, sizeof t, "DNS: %s = %s (%u ms)", nome, ipt, t_dns);
+    g_texto(j, X0, y, t, COR_DESTAQUE);
+    jan_mostrar_area(j, X0, y, L - X0 - 10, 40);
+    t0 = tempo_ms();
+    int s = tcp_conectar(ip, 80, 5000);
+    unsigned t_tcp = tempo_ms() - t0;
+    if (s >= 0) { rede_fechar(s); formatar_texto(t, sizeof t, "Internet: conexão aberta em %u ms.", t_tcp); }
+    else formatar_texto(t, sizeof t, "Internet: a conexão não abriu (%s).", nome_erro(s));
+    g_texto(j, X0, y + 20, t, s >= 0 ? COR_DESTAQUE : 0xC0392B);
+    jan_mostrar_area(j, X0, y, L - X0 - 10, 40);
+    registrar("configuracoes: teste de rede: dns %u ms, tcp %s %u ms", t_dns, s >= 0 ? "ok" : "falhou", t_tcp);
 }
 
 static void rede_redesenhar(void)
@@ -402,6 +448,7 @@ static void rede_tratar(const evento_t *e)
         mostrar_mensagem(rede_manual ? "Modo manual: preencha e aplique." : "Endereço automático (DHCP).", r);
         return;
     }
+    if (botao_tratar(j, &b_testar_rede, e)) { rede_testar(); return; }
     if (rede_manual && botao_tratar(j, &b_aplicar_rede, e)) {
         caixa_t *cs[] = { &c_ip, &c_masc, &c_rot, &c_dns };
         static const char *const chaves[] = { "rede.ip", "rede.mascara", "rede.roteador", "rede.dns" };

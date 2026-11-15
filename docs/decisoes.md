@@ -1525,3 +1525,58 @@ Agora o `UCFLAGS` leva `-mstackrealign` para todo o userland. Cada função
 alinha a própria pilha ao entrar, então qualquer pilha trocada à mão (motor,
 JavaScript, compilador ou um programa futuro) é segura, e o Cipó e o tocador
 não precisam mais do flag separado. O kernel continua sem SSE e sem esse custo.
+
+## D048. Programas úteis: comandos de texto, pacotes, captura, imagens, música e lixeira (H87)
+
+**Pedido.** Deixar o sistema mais completo para o uso do dia a dia, sem
+código de terceiros novo: tudo foi escrito para o SaguiOS, e o que já existia
+no Cipó e no tocador de vídeo foi reaproveitado pelo Makefile, sem copiar.
+
+**Comandos de texto.** `head`, `tail`, `sort` (estável, por mesclagem; -r, -n,
+-u), `uniq` (-c, -d), `find` (-name com * e ?, -type f|d), `du` (-s),
+`hexdump` (como o `hexdump -C`) e `less`. O `less` usa o que o Terminal já
+entende: tela alternativa (`ESC [ ? 1049 h`), sem quebra de linha
+(`ESC [ ? 7 l`) e o aviso de tamanho (`ESC [ ? 7727 h`, H78), então se ajusta
+à janela. Vindo de um pipe, o teclado não chega a ele, e ele só imprime.
+
+**Pacotes.** `tar` no formato ustar (POSIX.1-1988), sem compressão, e
+`zip`/`unzip` no formato básico da PKWARE (sem ZIP64 nem senha). A compressão
+é um DEFLATE novo na `libsagui` (`deflate.c`, `compactar.h`): LZ77 com tabela
+de dispersão de 3 bytes, até 48 tentativas por posição, e um bloco só com os
+códigos de Huffman fixos da RFC 1951. É mais simples que os códigos próprios
+de cada bloco e comprime menos (o texto da história do Linux foi de 1579 para
+1032 bytes), mas é DEFLATE válido: o teste abre os pacotes com o `zipfile` e
+o `tarfile` do Python. O `unzip` usa o descompressor do Cipó
+(`navegador/descompactar.c`), confere o CRC-32 de cada arquivo e recusa
+caminhos com ".." ou começando por "/"; o `tar xf` também.
+
+**Captura de tela.** A tecla Print Screen (E0 37) virou `TECLA_IMPRIMIR`. O
+gerenciador de janelas a trata antes da janela em foco e abre o
+`/bin/captura`, que lê a tela por uma chamada nova, `SIS_LER_TELA` (78): ela
+copia o buffer de trás (a tela montada, sem o cursor) para o programa, se o
+espaço couber. Qualquer programa pode ler a tela, como no X11 sem extensões;
+o SaguiOS não tem usuários separados, então não há a quem esconder. O PNG é
+RGB de 8 bits, filtro "nenhum" e IDAT comprimido pelo DEFLATE novo. Com
+pendrive montado vai para `/usb/Capturas`; sem, para `/capturas` (na memória,
+some ao desligar).
+
+**Visualizador.** Usa a porta única de imagens do Cipó (`imagens.c`: PNG,
+JPEG, GIF e WebP) e lê BMP de 24 e 32 bits. Ao reduzir, cada pixel da tela é
+a média dos pixels que ele cobre (guardada até mudar o zoom ou a janela); ao
+ampliar, pixel mais próximo. As imagens da pasta são ordenadas pelo nome,
+porque a FAT do pendrive lista na ordem em que foram gravadas.
+
+**Música.** Toca WAV (PCM de 8 ou 16 bits) e M4A/MP4 com AAC-LC, ligando o
+`mp4.c` e o `aac.c` do tocador de vídeo. O laço não espera a placa: entrega o
+que ela aceita e volta aos eventos. Não há MP3: seria um decodificador novo
+inteiro, e ficou de fora.
+
+**Lixeira.** "Apagar" no Arquivos move para a lixeira do mesmo disco
+(`/.lixeira` ou `/usb/.lixeira`), porque renomear entre a memória e o pendrive
+não existe (o `sis_renomear` recusa com ERRO_ACESSO; o `mv` copia e apaga). O `.origens` de cada lixeira guarda o caminho original de
+cada item, para restaurar. Nomes começando com ponto não aparecem no
+Arquivos. O `rm` do terminal continua apagando de vez, como no Unix.
+
+**Configuração de rede.** A aba Rede já tinha DHCP ou manual (H47). Ganhou o
+botão "Testar conexão": resolve example.com pelo DNS e abre uma conexão TCP na
+porta 80, com o tempo de cada passo.
