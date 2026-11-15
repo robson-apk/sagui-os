@@ -279,6 +279,7 @@ typedef struct {
 #define TECLA_F2        0x10B   /* renomear no Arquivos (H91); F1 é 0x10A, F12 0x115 */
 #define TECLA_ESC       0x116
 #define TECLA_IMPRIMIR  0x117   /* Print Screen (H87): o gerenciador de janelas abre o /bin/captura */
+#define TECLA_SUPER     0x118   /* tecla Windows (H95): fica no gerenciador de janelas */
 #endif
 
 #define JANELA_LARG_MAX 1000

@@ -1031,6 +1031,18 @@ static int encaixe_em(int mx, int my)
     return 0;
 }
 
+/* Põe a janela na zona z (2 a 7). Quem chama já guardou o tamanho de antes
+ * em j->antes, se a janela não estava encaixada. */
+static void encaixar(janela_t *j, int z)
+{
+    int x, y, l, a;
+    encaixe_ret(z, &x, &y, &l, &a);
+    j->encaixada = true;
+    j->maximizada = false;
+    aplicar_tamanho(j, x, y, l - 2 * BORDA, a - BARRA_TITULO - BORDA);
+    klog("[GUI] janela %d encaixada na zona %d\n", j->id, z);
+}
+
 static void desenhar_encaixe(void)
 {
     if (!encaixe_zona || arrastando < 0) return;
@@ -1380,11 +1392,7 @@ static void tratar_mouse(evento_mouse_t *m)
                 alternar_maximizar(j);
             } else if (z) {
                 if (!j->encaixada) { j->antes[0] = arr_x0; j->antes[1] = arr_y0; j->antes[2] = j->larg; j->antes[3] = j->alt; }
-                int x, y, l, a;
-                encaixe_ret(z, &x, &y, &l, &a);
-                j->encaixada = true;
-                aplicar_tamanho(j, x, y, l - 2 * BORDA, a - BARRA_TITULO - BORDA);
-                klog("[GUI] janela %d encaixada na zona %d\n", j->id, z);
+                encaixar(j, z);
             } else klog("[GUI] janela %d movida para (%d,%d)\n", j->id, j->x, j->y);
             return;
         }
@@ -1594,6 +1602,58 @@ static void tratar_mouse(evento_mouse_t *m)
     }
 }
 
+/* H95: atalhos do sistema. Devolve true se a tecla foi usada. */
+static int  alt_tab_lista[MAX_JANELAS], alt_tab_qtd, alt_tab_pos;
+
+static bool atalho(int t, uint32_t mods)
+{
+    if (t == TECLA_SUPER) { menu_abrir(!menu_aberto); return true; }
+    janela_t *j = focada();
+    if ((mods & MOD_ALT) && t == '\t') {
+        if (!alt_tab_qtd) {                      /* começo: a ordem de agora, da frente para trás */
+            for (int k = qtd - 1; k >= 0; k--)
+                if (!janelas[ordem[k]].escondida) alt_tab_lista[alt_tab_qtd++] = ordem[k];
+            alt_tab_pos = 0;
+        }
+        if (alt_tab_qtd < 2) return true;
+        alt_tab_pos = (alt_tab_pos + ((mods & MOD_SHIFT) ? alt_tab_qtd - 1 : 1)) % alt_tab_qtd;
+        int i = alt_tab_lista[alt_tab_pos];
+        if (menu_aberto) menu_abrir(false);
+        for (int k = 0; k < qtd; k++) if (ordem[k] == i) { trazer_para_cima(k); break; }
+        klog("[GUI] alt+tab: janela %d\n", janelas[i].id);
+        return true;
+    }
+    if ((mods & MOD_ALT) && t == TECLA_F4) {
+        if (j) {
+            evento_t e = { .tipo = EV_FECHAR };
+            entregar(j, &e);
+            klog("[GUI] alt+f4: fechar janela %d (%s)\n", j->id, j->titulo);
+        }
+        return true;
+    }
+    if (!(mods & MOD_SUPER)) return false;
+    if (t == 'd' || t == 'D') {                  /* Windows+D: minimiza todas */
+        for (int k = qtd - 1; k >= 0; k--)
+            if (!janelas[ordem[k]].minimizada && !janelas[ordem[k]].escondida) minimizar(&janelas[ordem[k]]);
+        return true;
+    }
+    if (!j || !j->redimensionavel) return t >= TECLA_CIMA && t <= TECLA_DIREITA;
+    if (t == TECLA_CIMA) {
+        if (!j->maximizada) alternar_maximizar(j);
+    } else if (t == TECLA_BAIXO) {
+        if (j->maximizada) alternar_maximizar(j);
+        else if (j->encaixada) {
+            j->encaixada = false;
+            aplicar_tamanho(j, j->antes[0], j->antes[1], j->antes[2], j->antes[3]);
+            klog("[GUI] janela %d voltou ao tamanho de antes\n", j->id);
+        } else minimizar(j);
+    } else if (t == TECLA_ESQUERDA || t == TECLA_DIREITA) {
+        if (!j->encaixada && !j->maximizada) { j->antes[0] = j->x; j->antes[1] = j->y; j->antes[2] = j->larg; j->antes[3] = j->alt; }
+        encaixar(j, t == TECLA_ESQUERDA ? 2 : 3);
+    } else return false;
+    return true;
+}
+
 static void tarefa_gerenciador(void *arg)
 {
     (void)arg;
@@ -1604,6 +1664,7 @@ static void tarefa_gerenciador(void *arg)
         while (mouse_tentar(&m))
             tratar_mouse(&m);
         int t;
+        if (!(teclado_modificadores() & MOD_ALT)) alt_tab_qtd = 0;   /* soltou o Alt: acaba o Alt+Tab */
         while ((t = teclado_tentar()) >= 0) {
             if (t == TECLA_IMPRIMIR) {   /* H87: a captura de tela é do sistema, não da janela em foco */
                 char *argv[] = { "captura", NULL };
@@ -1611,6 +1672,7 @@ static void tarefa_gerenciador(void *arg)
                 klog("[GUI] Print Screen: captura pid %d\n", pid);
                 continue;
             }
+            if (atalho(t, teclado_modificadores())) continue;   /* H95 */
             if (menu_aberto) { menu_tecla(t); continue; }   /* H89: a busca do menu Iniciar */
             janela_t *j = focada();
             if (!j) continue;

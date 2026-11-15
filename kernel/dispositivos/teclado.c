@@ -158,6 +158,20 @@ void teclado_byte(uint8_t b)
         else seguradas[k >> 3] |= (uint8_t)(1u << (k & 7));
     }
 
+    /* Tecla Windows (H95): modificador; sozinha, vira TECLA_SUPER ao soltar. */
+    static bool super_com_outra;
+    if (ext && (sc == 0x5B || sc == 0x5C)) {
+        if (solta) {
+            mods &= ~MOD_SUPER;
+            if (!super_com_outra) guardar(TECLA_SUPER);
+        } else if (!(mods & MOD_SUPER)) {
+            mods |= MOD_SUPER;
+            super_com_outra = false;
+        }
+        return;
+    }
+    if (!solta && (mods & MOD_SUPER)) super_com_outra = true;
+
     /* Modificadores. */
     uint32_t m = 0;
     if (sc == 0x2A || sc == 0x36) m = MOD_SHIFT;
