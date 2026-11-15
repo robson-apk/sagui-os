@@ -342,3 +342,39 @@ Log cronológico do que foi feito. Uma entrada por bloco de trabalho.
   manda o `.sgi` para ele.
 - Teste novo `h92_sgi`, que passou: o `mata-atlantica.sgi` abre com 1024x768,
   e a foto aparece (6 cores diferentes em 9 pontos do meio da janela).
+
+## 2026-11-15 18:30
+
+### H93: desempenho da interface
+
+- O usuário achou o sistema pesado. Para medir, usei uma instrumentação
+  temporária, fora do repositório: ciclos (`rdtsc`) de cada parte do
+  `gui_mostrar`, com o mesmo roteiro no H87 (0c14a66) e na versão atual. O
+  roteiro arrasta o Terminal, passa o mouse pela doca e abre o menu Iniciar
+  passando pelos ícones. No QEMU, o `rdtsc` acompanha o tempo real do X79,
+  que tem outros serviços, e uma rodada sozinha variou até 2×. Por isso os
+  números abaixo são medianas de 3 rodadas alternadas.
+- Antes, na primeira medida:
+  - menu Iniciar: 5,1 M kciclos em 12 quadros, porque cada célula sob o mouse
+    refazia o menu inteiro e a barra de cima com desfoque (`expandir_vidro`);
+  - arrastar janela: 3,41 M contra 1,77 M no H87;
+  - o vidro da barra de título dominava a moldura: 1,18 M de 1,66 M.
+- Mudanças:
+  - **menu:** sai do `expandir_vidro`, porque o vidro dele não é desfocado
+    (passa de `VIDRO_ALT_MAX`). Passar o mouse redesenha só as duas células,
+    e a busca e as categorias redesenham só o corpo. O menu caiu de 5,1 M
+    para 0,86 M;
+  - **vidro:** a cobertura do canto é calculada só nas linhas e colunas dos
+    cantos, o brilho uma vez por linha, e as 3 divisões por pixel do
+    desfoque viraram multiplicação pelo inverso (`media_de`). O vidro da
+    barra de título caiu de 0,97 M para 0,72 M (mediana);
+  - **sombra:** usa tabelas (bordas retas e cantos por raio, guardadas), e
+    nas linhas do meio pula a janela inteira. Ela ainda custa cerca de 1,8×
+    a do H87 (0,27 M contra 0,15 M). É uns 10% do quadro e ficou assim.
+- Arrastar janela, total do quadro (medianas): H87 2,67 M, agora 2,67 M. Na
+  rodada anterior a esta última mudança, deu 3,37 M contra 2,86 M. Fica
+  dentro do ruído: igual ao H87.
+- Os testes de pixel (`h88`, `h74_h77`, `h81`, `h89`, `h90`) passaram: o
+  visual não mudou.
+- Suíte completa: 90 de 91. Falhou o `h69_h70_saguicode`, que depende da
+  rede. Rodando sozinho logo depois, ele passou.

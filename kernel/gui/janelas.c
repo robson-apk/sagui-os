@@ -585,6 +585,46 @@ static void desenhar_menu(void)
     }
 }
 
+/* H93: o retângulo de um alvo do menu, para redesenhar só ele quando o
+ * mouse passa (antes o menu inteiro, e a barra de cima junto, era refeito a
+ * cada célula). */
+static bool menu_alvo_ret(int alvo, int *x, int *y, int *l, int *a)
+{
+    if (alvo >= 0 && alvo < MENU_COLUNAS * MENU_LINHAS) {
+        *x = MENU_GRADE_X + (alvo % MENU_COLUNAS) * MENU_CEL_L; *y = MENU_GRADE_Y + (alvo / MENU_COLUNAS) * MENU_CEL_A;
+        *l = MENU_CEL_L; *a = MENU_CEL_A;
+        return true;
+    }
+    if (alvo >= ALVO_CAT && alvo < ALVO_CAT + QTD_CATS) {
+        int cx = MENU_X + 16;
+        for (int c = 0; c < QTD_CATS; c++) {
+            if (c == CAT_INSTALADOS && !ha_instalados()) continue;
+            int cl = chip_largura(c);
+            if (ALVO_CAT + c == alvo) { *x = cx; *y = MENU_CHIPS_Y; *l = cl; *a = 26; return true; }
+            cx += cl + CHIP_VAO;
+        }
+        return false;
+    }
+    if (alvo == ALVO_SOBRE || alvo == ALVO_DESLIGAR) {
+        int b = alvo - ALVO_SOBRE, bl = 112;
+        *x = MENU_X + MENU_L - 16 - (2 - b) * (bl + 8) + 8; *y = MENU_RODAPE_Y + 4; *l = bl; *a = 32;
+        return true;
+    }
+    return false;
+}
+
+static void redesenhar_alvo(int alvo)
+{
+    int x, y, l, a;
+    if (menu_alvo_ret(alvo, &x, &y, &l, &a)) gui_redesenhar(x, y, l, a);
+}
+
+/* O corpo do menu (da busca para baixo), sem a barra de cima. */
+static void redesenhar_corpo_menu(void)
+{
+    gui_redesenhar(MENU_X, MENU_BUSCA_Y, MENU_L, MENU_Y + MENU_ALT - MENU_BUSCA_Y);
+}
+
 static int menu_alvo_em(int x, int y)
 {
     if (!menu_aberto || x < MENU_X || x >= MENU_X + MENU_L || y < MENU_Y || y >= MENU_Y + MENU_ALT) return -1;
@@ -656,7 +696,7 @@ static void menu_tecla(int t)
     } else return;
     if (menu_busca[0] == 0) menu_sel = 0;
     klog("[GUI] menu: busca \"%s\"\n", menu_busca);
-    redesenhar_menu();
+    redesenhar_corpo_menu();
 }
 
 /* Menus do botão direito (H81, menus de contexto do pull request #1 do
@@ -990,7 +1030,10 @@ static void expandir_vidro(void)
         if (cruza(0, 0, (int)video_largura(), BARRA_SUPERIOR + R)) gui_redesenhar(0, 0, (int)video_largura(), BARRA_SUPERIOR + R);
         if (doca_ligada && cruza(doca_x - R, doca_y - 30 - R, doca_l + 2 * R, DOCA_A + 30 + 2 * R))
             gui_redesenhar(doca_x - R - DOCA_CELULA, doca_y - 30 - R, doca_l + 2 * R + 2 * DOCA_CELULA, DOCA_A + 30 + 2 * R);
-        if (menu_aberto && cruza(0, 0, MENU_X + MENU_L + R, MENU_Y + MENU_ALT + R)) redesenhar_menu();
+        /* O menu Iniciar não entra aqui (H93): ele é mais alto que
+         * VIDRO_ALT_MAX, então o vidro dele é só a cor, sem desfoque, e um
+         * pedaço dele pode ser refeito sozinho. Antes, cada célula sob o
+         * mouse refazia o menu inteiro e a barra de cima. */
         if (ctx_aberto && cruza(ctx_x - R, ctx_y - R, ctx_l + 2 * R, ctx_qtd * MENU_ITEM + 8 + 2 * R)) redesenhar_ctx();
         for (int k = 0; k < qtd; k++) {
             janela_t *j = &janelas[ordem[k]];
@@ -1311,7 +1354,7 @@ static void tratar_mouse(evento_mouse_t *m)
             } else if (mi >= ALVO_CAT && mi < ALVO_CAT + QTD_CATS) {
                 menu_cat = mi - ALVO_CAT; menu_sel = 0;
                 klog("[GUI] menu: categoria %s\n", cat_nomes[menu_cat]);
-                redesenhar_menu();
+                redesenhar_corpo_menu();
                 return;
             } else if (mi == ALVO_BUSCA) return;
             else if (mi == ALVO_SOBRE || mi == ALVO_DESLIGAR) {
@@ -1469,7 +1512,7 @@ static void tratar_mouse(evento_mouse_t *m)
     if (sob != doca_sob) { doca_sob = sob; redesenhar_doca(); }
     int ms = menu_alvo_em(m->x, m->y);
     if (ms == ALVO_BUSCA) ms = -1;
-    if (ms != menu_sob) { menu_sob = ms; redesenhar_menu(); }
+    if (ms != menu_sob) { redesenhar_alvo(menu_sob); redesenhar_alvo(ms); menu_sob = ms; }
     int cs = ctx_item_em(m->x, m->y);
     if (cs != ctx_sob) { ctx_sob = cs; redesenhar_ctx(); }
     if (sob >= 0) return;
