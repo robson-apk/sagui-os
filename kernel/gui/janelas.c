@@ -58,6 +58,7 @@ typedef struct {
     uint32_t   cap_px;            /* quantos pixels cabem na memória da janela */
     bool       maximizada;
     int        antes[4];          /* x, y, largura, altura antes de maximizar */
+    bool       encaixada;         /* H94: presa numa metade ou num quarto da tela */
 } janela_t;
 
 static janela_t janelas[MAX_JANELAS];
@@ -72,6 +73,8 @@ static int suj_x0, suj_y0, suj_x1, suj_y1;   /* retângulo a recompor */
 static int redimensionando = -1, redim_modo, redim_l, redim_a;
 
 /* Estado do mouse no gerenciador. */
+static int encaixe_zona;                      /* H94: 0 nenhuma, 1 tela toda, 2 esq., 3 dir., 4-7 quartos */
+static int arr_x0, arr_y0;                     /* onde a janela estava ao ser pega */
 static int arrastando = -1, arr_dx, arr_dy;   /* janela sendo arrastada e onde foi pega */
 static int captura = -1;                       /* janela que recebeu o último clique */
 static uint32_t ult_clique_tique;
@@ -974,9 +977,11 @@ static void alternar_maximizar(janela_t *j)
     if (!j->redimensionavel) return;
     if (j->maximizada) {
         j->maximizada = false;
+        j->encaixada = false;
         aplicar_tamanho(j, j->antes[0], j->antes[1], j->antes[2], j->antes[3]);
     } else {
-        j->antes[0] = j->x; j->antes[1] = j->y; j->antes[2] = j->larg; j->antes[3] = j->alt;
+        if (!j->encaixada) { j->antes[0] = j->x; j->antes[1] = j->y; j->antes[2] = j->larg; j->antes[3] = j->alt; }
+        j->encaixada = false;
         int l, a;
         tamanho_maximo(j, &l, &a);
         j->maximizada = true;
@@ -1001,6 +1006,48 @@ static int borda_em(int x, int y, int *modo)
         if (dentro) return -1;                   /* uma janela por cima tapa as bordas das de baixo */
     }
     return -1;
+}
+
+/* H94: encaixe ao arrastar para a borda. Retângulo da moldura de cada zona. */
+static void encaixe_ret(int z, int *x, int *y, int *l, int *a)
+{
+    int W = (int)video_largura(), topo = BARRA_SUPERIOR;
+    int base = doca_ligada ? doca_y - 4 : (int)video_altura();
+    int h = base - topo, mw = W / 2, mh = h / 2;
+    *x = 0; *y = topo; *l = W; *a = h;
+    if (z == 2 || z == 4 || z == 6) *l = mw;
+    if (z == 3 || z == 5 || z == 7) { *x = mw; *l = W - mw; }
+    if (z >= 4) *a = mh;
+    if (z == 6 || z == 7) { *y = topo + mh; *a = h - mh; }
+}
+
+static int encaixe_em(int mx, int my)
+{
+    int W = (int)video_largura(), base = doca_ligada ? doca_y - 4 : (int)video_altura();
+    bool cima = my < BARRA_SUPERIOR + 80, baixo = my > base - 80;
+    if (mx <= 4) return cima ? 4 : baixo ? 6 : 2;
+    if (mx >= W - 5) return cima ? 5 : baixo ? 7 : 3;
+    if (my <= BARRA_SUPERIOR + 2) return 1;
+    return 0;
+}
+
+static void desenhar_encaixe(void)
+{
+    if (!encaixe_zona || arrastando < 0) return;
+    int x, y, l, a;
+    encaixe_ret(encaixe_zona, &x, &y, &l, &a);
+    suave_t sv = { tela.px, tela.larg, tela.cx0, tela.cy0, tela.cx1, tela.cy1 };
+    uint32_t cor = tema->filete ? tema->filete : 0x2FB866;
+    suave_ret(&sv, x + 6, y + 6, l - 12, a - 12, 12, cor, cor, 60);
+    suave_contorno(&sv, x + 6, y + 6, l - 12, a - 12, 12, cor, 220);
+}
+
+static void redesenhar_encaixe(int z)
+{
+    if (!z) return;
+    int x, y, l, a;
+    encaixe_ret(z, &x, &y, &l, &a);
+    gui_redesenhar(x, y, l, a);
 }
 
 static void desenhar_redimensionar(void)
@@ -1067,6 +1114,7 @@ void gui_mostrar(void)
     }
     desenhar_anims();
     desenhar_redimensionar();
+    desenhar_encaixe();
     desenhar_doca();
     if (tela.cy0 < BARRA_SUPERIOR) {
         if (vidro_efeitos) vidro_pintar(&tela, 0, 0, (int)video_largura(), BARRA_SUPERIOR, tema->topo, tema->k_topo, 0);
@@ -1321,10 +1369,27 @@ static void tratar_mouse(evento_mouse_t *m)
     if (arrastando >= 0) {
         janela_t *j = &janelas[arrastando];
         if (!j->usada || !(m->botoes & BOTAO_ESQUERDO)) {
-            if (j->usada) klog("[GUI] janela %d movida para (%d,%d)\n", j->id, j->x, j->y);
+            int z = encaixe_zona;
+            redesenhar_encaixe(z);
+            encaixe_zona = 0;
             arrastando = -1;
+            if (!j->usada) return;
+            if (z == 1) {
+                if (!j->encaixada) { j->antes[0] = arr_x0; j->antes[1] = arr_y0; j->antes[2] = j->larg; j->antes[3] = j->alt; }
+                j->encaixada = true;                   /* guarda o antes já posto acima */
+                alternar_maximizar(j);
+            } else if (z) {
+                if (!j->encaixada) { j->antes[0] = arr_x0; j->antes[1] = arr_y0; j->antes[2] = j->larg; j->antes[3] = j->alt; }
+                int x, y, l, a;
+                encaixe_ret(z, &x, &y, &l, &a);
+                j->encaixada = true;
+                aplicar_tamanho(j, x, y, l - 2 * BORDA, a - BARRA_TITULO - BORDA);
+                klog("[GUI] janela %d encaixada na zona %d\n", j->id, z);
+            } else klog("[GUI] janela %d movida para (%d,%d)\n", j->id, j->x, j->y);
             return;
         }
+        int z = j->redimensionavel ? encaixe_em(m->x, m->y) : 0;
+        if (z != encaixe_zona) { redesenhar_encaixe(encaixe_zona); encaixe_zona = z; redesenhar_encaixe(z); }
         int nx = m->x - arr_dx, ny = m->y - arr_dy;
         if (ny < BARRA_SUPERIOR) ny = BARRA_SUPERIOR;
         if (ny > (int)video_altura() - BARRA_TITULO) ny = (int)video_altura() - BARRA_TITULO;
@@ -1472,13 +1537,16 @@ static void tratar_mouse(evento_mouse_t *m)
                 arr_dx = rx; arr_dy = ry;
                 ult_clique_alvo = 2000 + j->id;
                 ult_clique_tique = relogio_tiques();
-                if (j->maximizada) {
-                    /* Arrastar uma janela maximizada: ela volta ao tamanho de antes, sob o mouse. */
+                encaixe_zona = 0;
+                if (j->maximizada || j->encaixada) {
+                    /* Arrastar uma janela maximizada ou encaixada: ela volta ao tamanho de antes, sob o mouse. */
                     j->maximizada = false;
+                    j->encaixada = false;
                     int nl = j->antes[2];
                     arr_dx = rx * (nl + 2 * BORDA) / moldura_l(j);
                     aplicar_tamanho(j, m->x - arr_dx, j->y, nl, j->antes[3]);
-                }
+                    arr_x0 = j->antes[0]; arr_y0 = j->antes[1];
+                } else { arr_x0 = j->x; arr_y0 = j->y; }
             }
             captura = -1;
             return;
