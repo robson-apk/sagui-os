@@ -80,11 +80,13 @@ def main():
         time.sleep(0.4)
 
         m.clique(a["x"] + 106 + 55, a["y"] + 7 + 13)              # Nova pasta
-        m.esperar_serial('"Nova pasta"', 10)
+        # H91: a pasta nasce como "Nova pasta" e o nome é editado na própria
+        # linha (sem janela de diálogo).
+        m.esperar_serial("arquivos: renomeando Nova pasta", 10)
         time.sleep(0.3)
         m.digitar("teste\n", 0.05)
-        m.esperar_serial("arquivos: pasta criada /tmp/teste", 10)
-        m.esperar_serial("arquivos: pasta /tmp (2 itens)", 10)   # a lista é relida logo depois de criar
+        m.esperar_serial("arquivos: renomeado /tmp/Nova pasta -> /tmp/teste", 10)
+        m.esperar_serial("arquivos: pasta /tmp (2 itens)", 10)   # a lista é relida depois de renomear
         verificar(True, "pasta /tmp/teste criada e aparece na lista")
         m.clique(*item(a, 0))                                      # seleciona teste/
         m.clique(a["x"] + 224 + 45, a["y"] + 7 + 13)              # Apagar

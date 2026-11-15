@@ -311,3 +311,22 @@ Log cronológico do que foi feito. Uma entrada por bloco de trabalho.
 
   Depois da correção, `h16`, `h24`, `h68`, `h87_tocador`, `h23` e
   `h87_utilitarios` passaram de novo.
+
+## 2026-11-15 16:20
+
+### H91: Arquivos com laço, "Novo" e nome na linha
+
+- Pedido do usuário: seleção translúcida no Arquivos, "criar" no menu do
+  botão direito (pasta, arquivo de texto e outros) e o nome escrito na própria
+  linha, sem painel, para criar e para renomear. Decisão D053.
+- Teste novo `h91_arquivos_criar`, que passou:
+  - o menu do vazio cria a Nova pasta, e nenhuma janela abre para pedir o
+    nome;
+  - "Projetos" digitado na linha renomeia a pasta;
+  - três arquivos de texto nomeados na linha (notas, lista, ideias);
+  - F2 renomeia (ideias.txt vira planos.txt), e Esc desiste;
+  - o laço marca os 3 arquivos e é translúcido: o branco da lista fica
+    (201, 219, 245);
+  - Delete manda os 3 para a lixeira com uma pergunta só.
+- `h23_arquivos` atualizado: a Nova pasta não abre mais o diálogo.
+- Suíte completa com o H91: 90 de 90 (o `b4_sagui3d` passou desta vez).

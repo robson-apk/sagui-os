@@ -599,17 +599,68 @@ bool area_tratar(jan_t *j, area_t *a, const evento_t *e)
 
 /* ------------------------------------------------------------ lista */
 
+bool lista_marcado(const lista_t *l, int i)
+{
+    if (i < 0 || i >= l->qtd) return false;
+    return l->marc ? l->marc[i] != 0 : i == l->sel;
+}
+
+int lista_qtd_marcados(const lista_t *l)
+{
+    int n = 0;
+    for (int i = 0; i < l->qtd; i++) n += lista_marcado(l, i);
+    return n;
+}
+
+static int lista_vis(const lista_t *l) { return (l->a - 4) / LISTA_ALTURA_ITEM; }
+static int lista_tx(const lista_t *l) { return l->x + 6 + (l->icone ? 22 : 0); }
+
+/* Onde termina o texto do item (o laço e o clique "no vazio" usam isso). */
+static int lista_fim_texto(const lista_t *l, int i)
+{
+    int tx = lista_tx(l), n = (int)tam_texto(l->itens[i]), cabe = (l->x + l->l - tx - 4) / LETRA_L;
+    return tx + (n < cabe ? n : cabe) * LETRA_L;
+}
+
+static void lista_ed_faixa(const lista_t *l, int *i0, int *i1)
+{
+    *i0 = l->ed_marca < l->ed_cur ? l->ed_marca : l->ed_cur;
+    *i1 = l->ed_marca < l->ed_cur ? l->ed_cur : l->ed_marca;
+}
+
 void lista_desenhar(jan_t *j, lista_t *l)
 {
     g_retangulo(j, l->x, l->y, l->l, l->a, COR_BRANCO);
     g_moldura(j, l->x, l->y, l->l, l->a, 0xA9B2BB);
-    int vis = (l->a - 4) / LISTA_ALTURA_ITEM;
+    int vis = lista_vis(l);
+    int larg_sel = l->l - 6 - (l->qtd > vis ? 6 : 0);
     for (int k = 0; k < vis && l->topo + k < l->qtd; k++) {
         int i = l->topo + k, y = l->y + 2 + k * LISTA_ALTURA_ITEM;
-        bool sel = i == l->sel;
-        if (sel) g_ret_redondo(j, l->x + 3, y, l->l - 6 - (l->qtd > vis ? 6 : 0), LISTA_ALTURA_ITEM, 4, COR_SELECAO, COR_SELECAO);
-        int tx = l->x + 6;
-        if (l->icone) { l->icone(j, tx, y + 2, i); tx += 22; }
+        bool sel = lista_marcado(l, i);
+        bool ed = l->editando && i == l->ed_item;
+        if (sel && !ed) g_ret_redondo(j, l->x + 3, y + 1, larg_sel, LISTA_ALTURA_ITEM - 2, 4, COR_SELECAO, COR_SELECAO);   /* 1 pixel de folga: marcados seguidos não grudam */
+        else if (l->marc && i == l->sel && !ed && lista_qtd_marcados(l) == 0)
+            g_contorno_redondo(j, l->x + 3, y, larg_sel, LISTA_ALTURA_ITEM, 4, 0xA9C4EE);   /* o item do teclado */
+        int tx = lista_tx(l);
+        if (l->icone) l->icone(j, tx - 22, y + 2, i);
+        if (ed) {
+            /* A caixa de edição na própria linha: fundo branco, contorno verde,
+             * a parte marcada em azul e o cursor. */
+            int cabe = (l->x + l->l - tx - 10) / LETRA_L;
+            int n = (int)tam_texto(l->ed_texto), ini = l->ed_cur > cabe ? l->ed_cur - cabe : 0;
+            suave_t sv = sv_de(j);
+            suave_ret(&sv, tx - 3, y, l->x + l->l - tx - 3, LISTA_ALTURA_ITEM, 3, COR_BRANCO, COR_BRANCO, 256);
+            suave_contorno(&sv, tx - 3, y, l->x + l->l - tx - 3, LISTA_ALTURA_ITEM, 3, COR_DESTAQUE, 256);
+            int i0, i1;
+            lista_ed_faixa(l, &i0, &i1);
+            if (i1 > i0) {
+                int a0 = i0 < ini ? ini : i0, a1 = i1 > ini + cabe ? ini + cabe : i1;
+                if (a1 > a0) g_retangulo(j, tx + (a0 - ini) * LETRA_L, y + 2, (a1 - a0) * LETRA_L, LETRA_A, 0xBFD6F6);
+            }
+            g_texto_n(j, tx, y + 2, l->ed_texto + ini, n - ini < cabe ? n - ini : cabe, COR_TEXTO);
+            g_retangulo(j, tx + (l->ed_cur - ini) * LETRA_L, y + 2, 2, LETRA_A, COR_TEXTO);
+            continue;
+        }
         g_texto_n(j, tx, y + 2, l->itens[i], (l->x + l->l - tx - 4) / LETRA_L, sel ? COR_BRANCO : COR_TEXTO);
     }
     if (l->qtd > vis) {   /* indicador simples de que há mais itens */
@@ -617,34 +668,189 @@ void lista_desenhar(jan_t *j, lista_t *l)
         int pol_a = trilho * vis / total, pol_y = (trilho - pol_a) * l->topo / (total - vis);
         g_ret_redondo(j, l->x + l->l - 7, l->y + 2 + pol_y, 5, pol_a, 2, 0xA9B2BB, 0xA9B2BB);
     }
+    if (l->laco) {
+        /* O laço: azul translúcido, recortado na lista. */
+        int x0 = l->laco_x0 < l->laco_x1 ? l->laco_x0 : l->laco_x1, x1 = l->laco_x0 ^ l->laco_x1 ^ x0;
+        int y0 = l->laco_y0 < l->laco_y1 ? l->laco_y0 : l->laco_y1, y1 = l->laco_y0 ^ l->laco_y1 ^ y0;
+        suave_t sv = sv_de(j);
+        sv.x0 = l->x + 1; sv.y0 = l->y + 1; sv.x1 = l->x + l->l - 1; sv.y1 = l->y + l->a - 1;
+        suave_ret(&sv, x0, y0, x1 - x0 + 1, y1 - y0 + 1, 2, COR_SELECAO, COR_SELECAO, 64);
+        suave_contorno(&sv, x0, y0, x1 - x0 + 1, y1 - y0 + 1, 2, COR_SELECAO, 230);
+    }
     jan_mostrar_area(j, l->x, l->y, l->l, l->a);
 }
 
 static void lista_garantir_visivel(lista_t *l)
 {
-    int vis = (l->a - 4) / LISTA_ALTURA_ITEM;
+    int vis = lista_vis(l);
     if (l->sel < l->topo) l->topo = l->sel;
     if (l->sel >= l->topo + vis) l->topo = l->sel - vis + 1;
     if (l->topo < 0) l->topo = 0;
 }
 
+static void lista_desmarcar(lista_t *l)
+{
+    if (l->marc) for (int i = 0; i < l->qtd; i++) l->marc[i] = 0;
+}
+
+/* Marca os itens que o retângulo do laço toca (a linha e o texto). */
+static void lista_marcar_laco(lista_t *l)
+{
+    int x0 = l->laco_x0 < l->laco_x1 ? l->laco_x0 : l->laco_x1, x1 = l->laco_x0 ^ l->laco_x1 ^ x0;
+    int y0 = l->laco_y0 < l->laco_y1 ? l->laco_y0 : l->laco_y1, y1 = l->laco_y0 ^ l->laco_y1 ^ y0;
+    int vis = lista_vis(l);
+    for (int k = 0; k < vis && l->topo + k < l->qtd; k++) {
+        int i = l->topo + k, ry0 = l->y + 2 + k * LISTA_ALTURA_ITEM, ry1 = ry0 + LISTA_ALTURA_ITEM - 1;
+        bool toca = y0 <= ry1 && ry0 <= y1 && x0 <= lista_fim_texto(l, i) && l->x + 3 <= x1;
+        l->marc[i] = toca;
+    }
+}
+
+void lista_editar(jan_t *j, lista_t *l, int i, int marcar)
+{
+    if (i < 0 || i >= l->qtd) return;
+    l->editando = true;
+    l->ed_item = i;
+    l->sel = i;
+    copia_texto(l->ed_texto, l->itens[i], sizeof l->ed_texto);
+    int n = (int)tam_texto(l->ed_texto);
+    l->ed_marca = 0;
+    l->ed_cur = marcar < 0 || marcar > n ? n : marcar;
+    lista_garantir_visivel(l);
+    lista_desenhar(j, l);
+}
+
+/* Teclas da edição na linha. */
+static int lista_tecla_edicao(jan_t *j, lista_t *l, unsigned t)
+{
+    char *s = l->ed_texto;
+    int n = (int)tam_texto(s), i0, i1;
+    lista_ed_faixa(l, &i0, &i1);
+    if (t == '\n') { l->editando = false; lista_desenhar(j, l); return LISTA_EDITOU; }
+    if (t == TECLA_ESC) { l->editando = false; lista_desenhar(j, l); return LISTA_DESISTIU; }
+    if ((t == '\b' || t == TECLA_DELETE) && i1 > i0) {           /* apaga a parte marcada */
+        memmove(s + i0, s + i1, (size_t)(n - i1 + 1));
+        l->ed_cur = l->ed_marca = i0;
+    } else if (t == '\b') {
+        if (l->ed_cur > 0) { memmove(s + l->ed_cur - 1, s + l->ed_cur, (size_t)(n - l->ed_cur + 1)); l->ed_cur--; }
+        l->ed_marca = l->ed_cur;
+    } else if (t == TECLA_DELETE) {
+        if (l->ed_cur < n) memmove(s + l->ed_cur, s + l->ed_cur + 1, (size_t)(n - l->ed_cur));
+        l->ed_marca = l->ed_cur;
+    } else if (t == TECLA_ESQUERDA) { l->ed_cur = i1 > i0 ? i0 : l->ed_cur > 0 ? l->ed_cur - 1 : 0; l->ed_marca = l->ed_cur; }
+    else if (t == TECLA_DIREITA) { l->ed_cur = i1 > i0 ? i1 : l->ed_cur < n ? l->ed_cur + 1 : n; l->ed_marca = l->ed_cur; }
+    else if (t == TECLA_HOME) l->ed_cur = l->ed_marca = 0;
+    else if (t == TECLA_END) l->ed_cur = l->ed_marca = n;
+    else if (t >= 0x20 && t < 0x100 && t != 0x7F && t != '/') {   /* '/' não pode em nome */
+        if (i1 > i0) { memmove(s + i0, s + i1, (size_t)(n - i1 + 1)); n -= i1 - i0; l->ed_cur = i0; }
+        if (n < (int)sizeof l->ed_texto - 1) {
+            memmove(s + l->ed_cur + 1, s + l->ed_cur, (size_t)(n - l->ed_cur + 1));
+            s[l->ed_cur++] = (char)t;
+        }
+        l->ed_marca = l->ed_cur;
+    } else return LISTA_NADA;
+    lista_desenhar(j, l);
+    return LISTA_NADA;
+}
+
 int lista_tratar(jan_t *j, lista_t *l, const evento_t *e)
 {
+    if (l->editando) {
+        if (e->tipo == EV_TECLA) return lista_tecla_edicao(j, l, e->tecla);
+        if (e->tipo == EV_CLIQUE) {
+            int y = l->y + 2 + (l->ed_item - l->topo) * LISTA_ALTURA_ITEM, tx = lista_tx(l);
+            if (dentro(e->x, e->y, tx - 3, y, l->x + l->l - tx - 3, LISTA_ALTURA_ITEM)) {
+                int c = (e->x - tx + LETRA_L / 2) / LETRA_L, n = (int)tam_texto(l->ed_texto);
+                l->ed_cur = l->ed_marca = c < 0 ? 0 : c > n ? n : c;
+                lista_desenhar(j, l);
+                return LISTA_NADA;
+            }
+            l->editando = false;                    /* clicou fora: termina */
+            lista_desenhar(j, l);
+            return LISTA_EDITOU;
+        }
+        return LISTA_NADA;
+    }
+    if (l->marc && l->laco) {
+        if (e->tipo == EV_MOVER && (e->botoes & 1)) {
+            int x = e->x, y = e->y;
+            l->laco_x1 = x < l->x + 1 ? l->x + 1 : x >= l->x + l->l - 1 ? l->x + l->l - 2 : x;
+            l->laco_y1 = y < l->y + 1 ? l->y + 1 : y >= l->y + l->a - 1 ? l->y + l->a - 2 : y;
+            lista_marcar_laco(l);
+            lista_desenhar(j, l);
+            return LISTA_NADA;
+        }
+        if (e->tipo == EV_SOLTOU || e->tipo == EV_MOVER) {
+            l->laco = false;
+            int dx = l->laco_x1 - l->laco_x0, dy = l->laco_y1 - l->laco_y0;
+            if (l->laco_linha > 0 && dx * dx + dy * dy < 16) {   /* não arrastou: foi um clique na linha */
+                int i = l->laco_linha - 1;
+                lista_desmarcar(l);
+                l->marc[i] = 1;
+                l->sel = i;
+                lista_desenhar(j, l);
+                return LISTA_SELECIONOU;
+            }
+            for (int i = 0; i < l->qtd; i++) if (l->marc[i]) { l->sel = i; break; }
+            lista_desenhar(j, l);
+            return LISTA_SELECIONOU;
+        }
+    }
     if (e->tipo == EV_CLIQUE && dentro(e->x, e->y, l->x, l->y, l->l, l->a)) {
         int i = l->topo + (e->y - l->y - 2) / LISTA_ALTURA_ITEM;
-        if (i < 0 || i >= l->qtd) return LISTA_NADA;
-        l->sel = i;
+        bool no_item = i >= 0 && i < l->qtd && (e->y - l->y - 2) >= 0 && e->x <= lista_fim_texto(l, i) + 12;
+        if (!l->marc) {
+            if (i < 0 || i >= l->qtd) return LISTA_NADA;
+            l->sel = i;
+            lista_desenhar(j, l);
+            return e->cliques >= 2 ? LISTA_ATIVOU : LISTA_SELECIONOU;
+        }
+        bool ctrl = (e->modificadores & 2) != 0, shift = (e->modificadores & 1) != 0;
+        if (e->botoes & 2) {                          /* botão direito */
+            if (no_item) { if (!l->marc[i]) { lista_desmarcar(l); l->marc[i] = 1; } l->sel = i; }
+            else { lista_desmarcar(l); l->sel = -1; }
+            lista_desenhar(j, l);
+            return LISTA_SELECIONOU;
+        }
+        bool na_linha = i >= 0 && i < l->qtd && (e->y - l->y - 2) >= 0;
+        if (!no_item && na_linha && e->cliques >= 2) {   /* duplo clique no fim da linha: abre o item */
+            lista_desmarcar(l); l->marc[i] = 1; l->sel = i;
+            lista_desenhar(j, l);
+            return LISTA_ATIVOU;
+        }
+        if (!no_item) {                               /* no vazio: começa o laço */
+            if (!ctrl) lista_desmarcar(l);
+            l->laco = true;
+            l->laco_linha = na_linha ? i + 1 : 0;
+            l->laco_x0 = l->laco_x1 = e->x;
+            l->laco_y0 = l->laco_y1 = e->y;
+            lista_desenhar(j, l);
+            return LISTA_SELECIONOU;
+        }
+        if (ctrl) l->marc[i] = !l->marc[i];
+        else if (shift && l->sel >= 0) {
+            int a = l->sel < i ? l->sel : i, b = l->sel < i ? i : l->sel;
+            lista_desmarcar(l);
+            for (int k = a; k <= b; k++) l->marc[k] = 1;
+        } else { lista_desmarcar(l); l->marc[i] = 1; }
+        if (!shift) l->sel = i;
         lista_desenhar(j, l);
-        return e->cliques >= 2 ? LISTA_ATIVOU : LISTA_SELECIONOU;
+        return e->cliques >= 2 && !ctrl && !shift ? LISTA_ATIVOU : LISTA_SELECIONOU;
     }
     if (e->tipo != EV_TECLA || l->qtd == 0) return LISTA_NADA;
     if (e->tecla == '\n' && l->sel >= 0) return LISTA_ATIVOU;
+    if (l->marc && e->tecla == 1) {                    /* Ctrl+A */
+        for (int i = 0; i < l->qtd; i++) l->marc[i] = 1;
+        lista_desenhar(j, l);
+        return LISTA_SELECIONOU;
+    }
     int antes = l->sel;
     if (e->tecla == TECLA_BAIXO && l->sel < l->qtd - 1) l->sel++;
     else if (e->tecla == TECLA_CIMA && l->sel > 0) l->sel--;
     else if (e->tecla == TECLA_HOME) l->sel = 0;
     else if (e->tecla == TECLA_END) l->sel = l->qtd - 1;
     if (l->sel == antes) return LISTA_NADA;
+    if (l->marc) { lista_desmarcar(l); l->marc[l->sel] = 1; }
     lista_garantir_visivel(l);
     lista_desenhar(j, l);
     return LISTA_SELECIONOU;

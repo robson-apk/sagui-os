@@ -276,6 +276,7 @@ typedef struct {
 #define TECLA_PGDN      0x107
 #define TECLA_INSERT    0x108
 #define TECLA_DELETE    0x109
+#define TECLA_F2        0x10B   /* renomear no Arquivos (H91); F1 é 0x10A, F12 0x115 */
 #define TECLA_ESC       0x116
 #define TECLA_IMPRIMIR  0x117   /* Print Screen (H87): o gerenciador de janelas abre o /bin/captura */
 #endif
