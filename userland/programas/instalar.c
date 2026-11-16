@@ -289,7 +289,23 @@ int principal(int argc, char **argv)
     g_texto(j, 20, 52, "O sistema e uma partição para os seus arquivos vão", COR_TEXTO_FRACO);
     g_texto(j, 20, 70, "para o disco escolhido. Tudo o que há nele é apagado.", COR_TEXTO_FRACO);
     if (!tem_origem) g_texto(j, 20, 116, "Não achei o disco de onde o SaguiOS ligou.", COR_TEXTO);
-    else if (!qtd) g_texto(j, 20, 116, "Nenhum outro disco encontrado.", COR_TEXTO);
+    else if (!qtd) {
+        /* O único disco é o de onde o sistema ligou: se for interno, o
+         * SaguiOS já está instalado nele. */
+        info_disco_t o;
+        bool interno = false;
+        for (int i = 0; listar_discos(i, &o) == 1; i++)
+            if (compara_texto(o.nome, origem) == 0) interno = o.interno;
+        char t[96];
+        if (interno) {
+            formatar_texto(t, sizeof t, "O SaguiOS já está instalado neste disco (%s).", origem);
+            g_texto(j, 20, 116, t, COR_TEXTO);
+            g_texto(j, 20, 140, "Para instalar em outro, conecte outro disco.", COR_TEXTO_FRACO);
+        } else {
+            g_texto(j, 20, 116, "Nenhum disco para instalar.", COR_TEXTO);
+            g_texto(j, 20, 140, "Conecte um disco rígido (IDE/SATA) e abra de novo.", COR_TEXTO_FRACO);
+        }
+    }
     for (int i = 0; i < qtd; i++) botao_desenhar(j, &botoes[i]);
     botao_t fechar_b = { L - 116, A - 44, 96, 32, "Fechar", false };
     botao_desenhar(j, &fechar_b);
