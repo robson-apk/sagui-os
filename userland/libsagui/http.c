@@ -165,7 +165,7 @@ int http_pedir_completo(const char *metodo, const char *url_inicial, const char 
         char tamanho_corpo[48] = "";
         if (corpo) formatar_texto(tamanho_corpo, sizeof tamanho_corpo, "Content-Length: %u\r\n", n_corpo);
         int n = formatar_texto(pedido, sizeof pedido,
-                               "%s %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: SaguiOS/2.1 (+https://github.com/erigobeli/sagui-os)\r\nAccept: */*\r\n"
+                               "%s %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: SaguiOS/2.2.0 (+https://github.com/erigobeli/sagui-os)\r\nAccept: */*\r\n"
                                "Accept-Encoding: identity\r\nConnection: close\r\n%s%s\r\n", metodo, u.caminho, host,
                                extra ? extra : "", tamanho_corpo);
         if (n >= (int)sizeof pedido - 1) { canal_fechar(&c); copia_texto(resp->erro, "cabeçalhos grandes demais", sizeof resp->erro); return ERRO_INVALIDO; }

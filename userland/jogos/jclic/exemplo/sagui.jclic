@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- O sagui e a banana: projeto de exemplo do SaguiOS (H92), escrito aqui
+     no formato aberto do JClic. O build o põe num ZIP em
+     /jogos/jclic/sagui.jclic.zip. Licença: a do SaguiOS (GPL 3). -->
+<JClicProject name="sagui" version="0.1.3">
+  <settings>
+    <title>O sagui e a banana</title>
+    <author name="SaguiOS"/>
+    <description><p>Seis atividades com palavras da mata.</p></description>
+  </settings>
+  <sequence>
+    <item activity="boas-vindas"/>
+    <item activity="silabas"/>
+    <item activity="cores"/>
+    <item activity="frase"/>
+    <item activity="palavras"/>
+    <item activity="cruzadinha"/>
+  </sequence>
+  <activities>
+    <activity class="@panels.InformationScreen" name="boas-vindas">
+      <cells id="primary" rows="1" cols="1" cellWidth="420" cellHeight="200">
+        <style><font size="20"/><color foreground="0x1E2328" background="0xFFF3B0"/></style>
+        <cell><p>Olá! Eu sou o sagui.</p><p>Vamos brincar com palavras da mata?</p><p>Clique em Próxima para começar.</p></cell>
+      </cells>
+    </activity>
+    <activity class="@memory.MemoryGame" name="silabas">
+      <messages>
+        <cell type="initial"><p>Ache cada palavra e as sílabas dela.</p></cell>
+        <cell type="final"><p>Muito bem! Você achou todos os pares.</p></cell>
+      </messages>
+      <cells id="primary" rows="1" cols="4" cellWidth="110" cellHeight="70">
+        <style><color foreground="0x1E2328" background="0xFFF3B0"/></style>
+        <cell><p>sagui</p></cell>
+        <cell><p>banana</p></cell>
+        <cell><p>folha</p></cell>
+        <cell><p>mata</p></cell>
+      </cells>
+      <cells id="secondary" rows="1" cols="4" cellWidth="110" cellHeight="70">
+        <style><color foreground="0x0B5C30" background="0xDCEFD0"/></style>
+        <cell><p>SA-GUI</p></cell>
+        <cell><p>BA-NA-NA</p></cell>
+        <cell><p>FO-LHA</p></cell>
+        <cell><p>MA-TA</p></cell>
+      </cells>
+    </activity>
+    <activity class="@associations.SimpleAssociation" name="cores">
+      <messages>
+        <cell type="initial"><p>Ligue cada fruta à sua cor: clique na fruta e depois na cor.</p></cell>
+        <cell type="final"><p>Isso! Agora as frutas têm cor.</p></cell>
+      </messages>
+      <cells id="primary" rows="4" cols="1" cellWidth="140" cellHeight="50">
+        <cell><p>banana</p></cell>
+        <cell><p>morango</p></cell>
+        <cell><p>uva</p></cell>
+        <cell><p>kiwi</p></cell>
+      </cells>
+      <cells id="secondary" rows="4" cols="1" cellWidth="140" cellHeight="50">
+        <cell><style><color foreground="0x000000" background="0xFFD52E"/></style><p>amarela</p></cell>
+        <cell><style><color foreground="0xFFFFFF" background="0xC8161F"/></style><p>vermelho</p></cell>
+        <cell><style><color foreground="0xFFFFFF" background="0x6A2A9A"/></style><p>roxa</p></cell>
+        <cell><style><color foreground="0x000000" background="0x7CC46E"/></style><p>verde</p></cell>
+      </cells>
+      <scramble times="5" primary="false" secondary="true"/>
+      <layout position="AB"/>
+    </activity>
+    <activity class="@puzzles.ExchangePuzzle" name="frase">
+      <messages>
+        <cell type="initial"><p>Ponha a frase em ordem: clique em duas partes para trocá-las.</p></cell>
+        <cell type="final"><p>O sagui come banana na mata!</p></cell>
+      </messages>
+      <cells id="primary" rows="1" cols="4" cellWidth="120" cellHeight="60">
+        <style><color foreground="0x1E2328" background="0xFFF3B0"/></style>
+        <cell><p>O sagui</p></cell>
+        <cell><p>come</p></cell>
+        <cell><p>banana</p></cell>
+        <cell><p>na mata.</p></cell>
+      </cells>
+    </activity>
+    <activity class="@textGrid.WordSearch" name="palavras">
+      <messages>
+        <cell type="initial"><p>Ache 5 palavras: clique na primeira letra e na última.</p></cell>
+        <cell type="final"><p>Você achou todas as palavras!</p></cell>
+      </messages>
+      <textGrid rows="8" columns="8" cellWidth="34" cellHeight="34">
+        <text>
+          <row>SAGUI***</row>
+          <row>*******F</row>
+          <row>BANANA*O</row>
+          <row>*******L</row>
+          <row>MATA***H</row>
+          <row>*******A</row>
+          <row>GALHO***</row>
+          <row>********</row>
+        </text>
+      </textGrid>
+      <clues>
+        <clue id="0">SAGUI</clue>
+        <clue id="1">BANANA</clue>
+        <clue id="2">FOLHA</clue>
+        <clue id="3">MATA</clue>
+        <clue id="4">GALHO</clue>
+      </clues>
+    </activity>
+    <activity class="@textGrid.CrossWord" name="cruzadinha">
+      <messages>
+        <cell type="initial"><p>Clique numa casa e escreva. Clique de novo para trocar o sentido.</p></cell>
+        <cell type="final"><p>Cruzadinha completa!</p></cell>
+      </messages>
+      <textGrid rows="5" columns="5" cellWidth="40" cellHeight="40">
+        <text>
+          <row>SAGUI</row>
+          <row>**A**</row>
+          <row>**L**</row>
+          <row>**H**</row>
+          <row>*BOLO</row>
+        </text>
+      </textGrid>
+      <cells id="acrossClues" rows="2" cols="1">
+        <cell id="1"><p>Macaquinho com tufos brancos nas orelhas.</p></cell>
+        <cell id="3"><p>Doce de aniversário.</p></cell>
+      </cells>
+      <cells id="downClues" rows="1" cols="1">
+        <cell id="2"><p>Parte da árvore onde o sagui pula.</p></cell>
+      </cells>
+    </activity>
+  </activities>
+</JClicProject>

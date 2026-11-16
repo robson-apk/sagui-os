@@ -1687,7 +1687,165 @@ AltGr e a tecla Del do teclado numérico (ponto no ES). O euro do AltGr+E não
 existe no Latin-1 e ficou de fora. O ~ do AltGr+4 é tecla morta, como no
 ABNT2: ~ + espaço dá o próprio ~.
 
-## D052. Programas úteis: comandos de texto, pacotes, captura, imagens, música e lixeira (H87)
+## D052. Compactação na libsagui: DEFLATE próprio, gzip, tar e zip (H93)
+
+O SaguiOS ganhou `gzip`/`gunzip`, `tar` e `zip`/`unzip` (apelidos
+`compactar`, `descompactar`, `empacotar`, `zipar` e `deszipar`), ideia trazida
+do fork do Alejandro Anuncibay. Os programas básicos e a libsagui são núcleo
+(D041), então tudo foi escrito aqui:
+
+- **Um DEFLATE só, na libsagui** (`compactar.c`, `compactar.h`). O
+  descompactador é o do navegador (H59), que saiu de
+  `userland/navegador/descompactar.c` e agora serve também ao PNG, às fontes
+  do Cipó e aos programas novos, conferindo mais coisas (NLEN dos blocos
+  guardados, códigos de Huffman com códigos demais, o Adler-32 do zlib) e
+  podendo alocar a saída, com um limite de 256 MB contra "bombas".
+- **O compactador é nosso, da RFC 1951.** O do fork foi lido, mas não
+  aproveitado: ele traz marcas do zlib (a tabela de níveis com os limites
+  "bom" e "preguiçoso", o corte de repetições de 3 bytes a mais de 4096 de
+  distância, a constante 5552 do Adler-32). O nosso procura repetições com
+  uma tabela de hash de 3 bytes e cadeias de posições (a ideia da seção 4 da
+  RFC), olha 4 a 1024 candidatos conforme o nível, espera um byte do nível 4
+  em diante, monta códigos de Huffman (1952) com o limite de 15 bits
+  garantido por um conserto da soma de Kraft, e cada bloco de até 16384
+  símbolos sai guardado, com códigos fixos ou próprios, o que custar menos
+  bits. No texto e em binários fica igual ou um pouco menor que o zlib
+  nível 6; dados aleatórios crescem só os cabeçalhos dos blocos guardados.
+- **Tudo na memória.** Os programas leem o arquivo inteiro, compactam e
+  gravam. É simples, e os arquivos do SaguiOS cabem na memória; um pacote
+  de várias centenas de MB pediria compactar em fluxo, que fica para depois.
+- **Nomes.** No SaguiOS os nomes são Latin-1; dentro do .tar e do .zip vão
+  em UTF-8 (no zip, com o bit 11 ligado só quando há acento), como os outros
+  sistemas esperam. Na volta, o que não existe em Latin-1 vira "_"; um zip
+  sem o bit 11 é lido como página de código 437.
+- **Extrair é perigoso, e os programas se protegem**: nomes absolutos ou
+  com ".." são recusados (`caminho_seguro`), ligações simbólicas do tar são
+  ignoradas, e nada que já existe é substituído sem pedir (`-f` no gunzip,
+  a letra `o` no tar, `-o` no unzip). Os testes conferem com pacotes
+  maliciosos feitos pelo Python.
+- **Como se sabe que está certo.** `tests/h93_compactar_pc.py` compila o
+  `compactar.c` no computador e confere ida e volta com o zlib e o gzip do
+  Python nos dois sentidos; `tests/h93_compactar.py` usa os programas dentro
+  do SaguiOS e confere tudo no computador com o `tarfile` e o `zipfile`.
+
+## D053. Os jogos do fork de Alejandro: menu "Jogos" e uma pasta por jogo (H92)
+
+O fork SaguiOS-Extended de Alejandro Anuncibay (GPL 2 "ou posterior",
+compatível com a GPL 3) partiu da versão 1.0 e tem uma libsagui bem maior que
+a nossa. Os jogos dele foram reescritos sobre o `main` atual, com o nosso
+`gui.h` (só um ajudante novo: `g_imagem`, que desenha uma imagem ARGB com
+transparência), nomes e textos em português e, a pedido do Eli, com o tema de
+banana do sistema: Caça-Bananas (a mina é uma banana-bomba, a bandeira tem a
+cara do sagui), Paciência Banana (feltro verde, banana no verso e nos ases, o
+sagui nas figuras, os quatro naipes de sempre), o emulador de CHIP-8 com o
+montador `chip8asm` e o visor de atividades JClic. Nenhum nome de jogo ou
+produto existente.
+
+**Menu.** O menu do sagui troca Banana e Sagui 3D por um item "Jogos", que
+abre o lançador `/bin/jogos`: os ícones (os mesmos da doca, gerados por
+`tools/mkarte.py` e ligados ao programa) e o nome de cada jogo que existe em
+`/bin`. Os ícones da área de trabalho continuam.
+
+**Pastas.** Cada jogo com mais de um arquivo fica em `userland/jogos/<nome>/`
+e vira `/bin/<nome>` (o Makefile lê as pastas). As regras de cada jogo ficam
+num arquivo sem tela (`regras.c`, `nucleo.c`, `montador.c`, `motor.c`...),
+que compila também no computador de desenvolvimento com `-DTESTE_HOSPEDEIRO`:
+os testes `tests/jogos/teste_*.c` conferem as regras sem o QEMU.
+
+**Sem binários e sem conteúdo de fora.** As ROMs de CHIP-8 de exemplo
+(`sagui.asm`, `rebate.asm`) foram escritas aqui e são montadas no build pelo
+mesmo montador, compilado para o computador (`tools/chip8asm.c`). O projeto
+JClic de exemplo ("O sagui e a banana") também foi escrito aqui, em XML, e o
+build o põe num ZIP (`tools/mkzip.py`). Nenhuma ROM nem atividade baixada da
+internet entra na imagem: as licenças delas são desconhecidas. A fonte 4x5 do
+CHIP-8 são os valores da referência técnica (os programas dependem deles); a
+8x10 foi desenhada no fork.
+
+**JClic.** O XML, o ZIP e as regras são nossos (nada do JClic nem do
+JClic.js); o DEFLATE e as imagens PNG/JPEG são os do Cipó. Jogam-se a tela de
+informação, os quebra-cabeças duplo, de troca e de buraco, a associação
+simples e a complexa, a memória, explorar, identificar, o caça-palavras e a
+cruzadinha. Ficaram de fora as atividades de texto, as formas não
+retangulares (`@Holes`), o som das células, os saltos entre atividades e as
+imagens GIF.
+
+## D054. Licenças dentro da imagem, histórico de versões e números MAIOR.MENOR.CORREÇÃO (H94)
+
+A janela "Sobre o SaguiOS" foi refeita e ganhou dois botões: "Créditos e
+licenças" e "Histórico". As escolhas:
+
+- **As licenças vão dentro da imagem.** Quem recebe só a imagem (um pendrive,
+  o .vdi) também recebe os avisos de copyright e os textos das licenças, como
+  a GPL 3, a LGPL, as BSD e a Apache pedem para quem distribui. O build
+  (`tools/mklicencas.py`) monta `/sistema/licencas` copiando os textos **dos
+  lugares onde já estão** no repositório (`LICENSE`, `CONTRIBUIDORES.md`,
+  `CREDITOS.md`, as pastas de `terceiros/`, a licença das fontes DejaVu e a
+  do Unicode), em vez de guardar uma segunda cópia no git, que poderia ficar
+  diferente da original.
+- **Terceiros entram sozinhos, e sem licença o build para.** Cada pasta de
+  `terceiros/` vira um arquivo (o `ORIGEM.md` mais os `LICENSE*`,
+  `COPYING*`, `PATENTS*` e `NOTICE*`), e o nome que aparece na lista sai do
+  título do `ORIGEM.md` e da coluna "Licença" do `CREDITOS.md`. Uma pasta sem
+  arquivo de licença faz o `make` falhar, e o teste `h94_sobre.py` confere
+  que cada licença de `terceiros/` chegou a `/sistema/licencas`. Dados e
+  fontes, que não ficam em `terceiros/`, são uma lista curta no próprio
+  `mklicencas.py`; para o dicionário da RFC 7932, os certificados raiz (MPL
+  2.0), o fundo da Mata Atlântica e as tabelas das normas, que não têm um
+  arquivo de licença no repositório, o aviso é escrito ali.
+- **Os certificados raiz levam o aviso da MPL 2.0**, com o endereço do texto
+  (https://mozilla.org/MPL/2.0/), que é a forma que a própria MPL prevê
+  ("If a copy of the MPL was not distributed with this file..."); o texto
+  completo da MPL não está no repositório.
+- **Latin-1.** Os textos saem em UTF-8 com extensão .txt, e o `mksgfs.py`
+  converte para Latin-1, como os outros textos do sistema. Antes, as letras
+  tipográficas que não existem no Latin-1 (travessão, aspas curvas) viram as
+  simples, para não aparecerem como "?".
+- **Um programa, três janelas.** `sobre-o-sistema creditos` e
+  `sobre-o-sistema historico` são o mesmo programa com um argumento, cada
+  janela num processo próprio, para a janela Sobre continuar atualizando. A
+  área de texto da libsagui não quebra linhas, então o programa quebra as
+  linhas largas num espaço antes de mostrar.
+- **32 ou 64 bits pela ABI, sem quebrar os programas antigos.** O
+  `info_versao_t` ganhou um campo `bits` **no fim**. O kernel só o preenche
+  quando o programa pede o tamanho novo (o terceiro argumento de
+  `info_sistema`); um programa compilado antes pede 48 bytes e recebe só os
+  campos que conhece, sem memória escrita além da variável dele. O valor é
+  `sizeof(void *) * 8` do próprio kernel: num kernel de 64 bits ele vira 64
+  sem ninguém lembrar de trocar uma constante.
+- **O histórico de versões fica em `VERSOES.md`**, na raiz e dentro da
+  imagem (`/sistema/ajuda/versoes.md`). Mudanças novas entram na seção "Em
+  desenvolvimento"; quando sai uma versão, aquilo vira a seção dela.
+- **Versões MAIOR.MENOR.CORREÇÃO a partir da 3.0.** Até a 2.1 as versões eram
+  "fases" grandes, entregues de uma vez. Com contribuições chegando o tempo
+  todo, os números passam a dizer o tamanho da mudança: só correções mudam o
+  último número, coisas novas o do meio, mudanças na base (que podem fazer
+  programas antigos pararem) o primeiro. Os números não têm limite (3.10,
+  3.0.12), e as versões saem de tempos em tempos, juntando muitas mudanças.
+  A versão em preparação já usa três números: 2.2.0.
+
+## D055. Ícones desenhados só em código, no estilo do pull request #26
+
+O pull request #26 (Robson de Lima Barbosa) trouxe um visual novo para os
+ícones: um quadrado de cantos redondos com degradê vertical, um brilho no alto,
+sombra e um símbolo claro no meio. Os pixels vinham de uma folha de imagens
+recortada; o estilo ficou, mas a folha saiu. O motivo: o sistema não pode
+depender de um gerador de imagens para ganhar um ícone novo, e o recorte
+deixava alguns ícones fora do centro.
+
+- `tools/mkarte.py` tem `estilo_app(t, cor_de_cima, cor_de_baixo)`, que pinta
+  o fundo medido nos ícones do #26 (caixa de 45 pixels, raio 10,5, sempre no
+  mesmo lugar), e ganhou curvas de Bézier, arcos e rotação para os símbolos.
+- Todos os ícones foram redesenhados assim, com as cores dos do #26. Novos
+  desenhos: a calculadora (corpo, visor e teclas), o Sagui 3D (um corredor de
+  mata em primeira pessoa com uma banana na trilha, em vez de um cubo), a
+  banana-bomba do Caça-Bananas (no vermelho), as cartas da Paciência, o
+  monitor de fósforo verde com um foguete de pixels do CHIP-8 (na caixa
+  preta), a peça de quebra-cabeça do JClic e o controle dos Jogos (no roxo).
+- Saíram `arte/icones-folha.png`, `arte/icone-saguicode.png`,
+  `tools/png_icones.py` e `tools/icones_imagem.py`. O padrão para um ícone
+  novo está no começo do `mkarte.py` e no `AGENTS.md`.
+
+## D056. Programas úteis: comandos de texto, pacotes, captura, imagens, música e lixeira (H87)
 
 **Pedido.** Deixar o sistema mais completo para o uso do dia a dia, sem
 código de terceiros novo: tudo foi escrito para o SaguiOS, e o que já existia
@@ -1742,7 +1900,7 @@ Arquivos. O `rm` do terminal continua apagando de vez, como no Unix.
 botão "Testar conexão": resolve example.com pelo DNS e abre uma conexão TCP na
 porta 80, com o tempo de cada passo.
 
-## D053. Revisão do visual: bordas suavizadas, ícones e Configurações (H88)
+## D057. Revisão do visual: bordas suavizadas, ícones e Configurações (H88)
 
 **Pedido.** O usuário apontou bordas com pontas, vidro mal feito, as
 Configurações feias, falta de ícones (só texto) e texto saindo dos botões. As
@@ -1798,7 +1956,7 @@ então os testes que clicam nele foram ajustados. O `-Wno-missing-field-initiali
 entra no `UCFLAGS` porque `botao_t` ganhou campos no fim: quem escreve
 `{ x, y, l, a, texto }` deixa o resto em zero, que é o certo.
 
-## D054. Menu Iniciar com todos os programas, busca e categorias (H89)
+## D058. Menu Iniciar com todos os programas, busca e categorias (H89)
 
 **Contexto.** O menu do sagui listava 13 programas numa coluna. Programas que
 existem em `/bin` e abrem janela (Chuva de letras, Triângulos 3D, Componentes,
@@ -1832,7 +1990,7 @@ categorias.
 `h78`, `h86`, `h88`) agora clicam na grade. O item k fica em
 `(28 + (k % 5) * 108 + 54, 134 + (k // 5) * 92 + 30)`.
 
-## D055. Laço de seleção na área de trabalho (H90)
+## D059. Laço de seleção na área de trabalho (H90)
 
 **Origem.** O laço translúcido foi feito pelo Robson no commit 0b3c462 (ramo
 `area-lixeira`, sobre a 1.0). O commit foi junto do pull request do Cipó (#6),
@@ -1855,7 +2013,7 @@ separadas.
 foi para 620 pixels, a sobra da fileira agora é repartida entre os chips
 (`chip_folga`) e a grade fica centralizada.
 
-## D056. Arquivos: laço, vários marcados, "Novo" no menu e nome editado na linha (H91)
+## D060. Arquivos: laço, vários marcados, "Novo" no menu e nome editado na linha (H91)
 
 **Pedido.** Queria a seleção translúcida também no Arquivos, as opções de
 criar no menu do botão direito (pasta, arquivo de texto e outros) e o nome

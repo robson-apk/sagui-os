@@ -42,6 +42,7 @@ void   g_texto(jan_t *j, int x, int y, const char *t, uint32_t cor);
 void   g_texto_n(jan_t *j, int x, int y, const char *t, int n, uint32_t cor);
 void   g_desenho(jan_t *j, int x, int y, const char *const *linhas, int l, int a,
                  uint32_t (*paleta)(char), int escala);   /* paleta devolve 0xFF000000 = transparente */
+void   g_imagem(jan_t *j, int x, int y, const uint32_t *px, int l, int a);   /* ARGB com alfa (H92) */
 void   g_relevo(jan_t *j, int x, int y, int l, int a, bool afundado);
 int    g_largura_texto(const char *t);
 /* H88: formas com borda suavizada, ícones e texto que não passa do espaço. */

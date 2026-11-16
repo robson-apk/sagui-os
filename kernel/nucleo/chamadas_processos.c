@@ -188,7 +188,10 @@ int32_t sis_info_sistema(uint32_t tipo, uint32_t ptr, uint32_t n, uint32_t d, ui
     }
     if (tipo == INFO_VERSAO) {
         info_versao_t *v = (info_versao_t *)ptr;
-        if (!usuario_ok(v, sizeof *v, true)) return ERRO_ENDERECO;
+        /* Programas antigos pedem a estrutura sem o campo "bits" (H94):
+         * escreve só o que cabe no tamanho que o programa pediu. */
+        uint32_t tam = n >= sizeof *v ? sizeof *v : sizeof *v - sizeof v->bits;
+        if (!usuario_ok(v, tam, true)) return ERRO_ENDERECO;
         extern const char *sagui_versao;
         extern uint32_t imagem_bytes;
         txt_copia_n(v->versao, sagui_versao, sizeof v->versao);
@@ -196,6 +199,10 @@ int32_t sis_info_sistema(uint32_t tipo, uint32_t ptr, uint32_t n, uint32_t d, ui
         v->segundos_ligado = relogio_segundos();
         v->largura = info_boot.vesa_ativo ? info_boot.vesa_largura : 80;
         v->altura = info_boot.vesa_ativo ? info_boot.vesa_altura : 25;
+        /* O tamanho de um ponteiro do próprio kernel diz a arquitetura: 4
+         * bytes no kernel de 32 bits, 8 num kernel de 64 bits, sem precisar
+         * de uma constante a mais para lembrar de trocar. */
+        if (tam == sizeof *v) v->bits = (uint32_t)(sizeof(void *) * 8);
         return 0;
     }
     return ERRO_INVALIDO;

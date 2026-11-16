@@ -15,7 +15,8 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from qemu import Maquina, verificar, RAIZ, imagem_console  # noqa: E402
 
-PROGRAMAS = sorted([f[:-2] for f in os.listdir(os.path.join(RAIZ, "userland", "programas")) if f.endswith(".c")] + ["sagui3d", "navegador", "cipo", "video", "saguicode", "saguicode-janela", "cc", "visualizador", "musica", "unzip", "tocador", "mp3info"])   # programas de várias partes, em pastas próprias (cipo e video: H82; visualizador, musica e unzip: H87; tocador e mp3info: H86 do upstream)
+PROGRAMAS = sorted([f[:-2] for f in os.listdir(os.path.join(RAIZ, "userland", "programas")) if f.endswith(".c")] + ["sagui3d", "navegador", "cipo", "video", "saguicode", "saguicode-janela", "cc", "visualizador", "musica", "tocador", "mp3info"]
+                   + os.listdir(os.path.join(RAIZ, "userland", "jogos")))   # programas de várias partes, em pastas próprias (cipo e video: H82; tocador e mp3info: H86/H87; saguicode-janela: H89; cada pasta de userland/jogos: H92)
 
 
 def main():
@@ -127,15 +128,15 @@ def main():
         out = m.comando("data")
         verificar(re.search(r"\d\d/\d\d/20\d\d \d\d:\d\d:\d\d", out), "data")
         out = m.comando("sobre")
-        verificar("SaguiOS 2.1" in out and "processos" in out, "sobre")
+        verificar("SaguiOS 2.2.0" in out and "processos" in out, "sobre")
 
         # Histórico (seta para cima) e completar com Tab.
         out = m.comando("", teclas_finais=("up", "ret"))
-        verificar("SaguiOS 2.1" in out, "seta para cima repete o último comando (sobre)")
+        verificar("SaguiOS 2.2.0" in out, "seta para cima repete o último comando (sobre)")
         out = m.comando("cat /his", teclas_finais=("tab", "l", "i", "tab", "ret"))
         verificar("cat /historia/linux.txt" in out and "Minix" in out, "Tab completa /his -> /historia/ e li -> linux.txt")
         out = m.comando("sob", teclas_finais=("tab", "ret"))
-        verificar("executar /bin/sobre" in out and "SaguiOS 2.1" in out, "Tab completa nomes de comandos (sob -> sobre)")
+        verificar("executar /bin/sobre" in out and "SaguiOS 2.2.0" in out, "Tab completa nomes de comandos (sob -> sobre)")
         out = m.comando("regis", teclas_finais=("tab", "ret"))
         verificar("executar /bin/registro" in out, "Tab completa programas de /bin fora da tabela do shell (regis -> registro)")
         out = m.comando("conta", teclas_finais=("d", "tab", "1", "ret"))

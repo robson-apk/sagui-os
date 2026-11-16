@@ -27,7 +27,7 @@
 #include "ata.h"
 #include "video.h"
 
-#define SAGUI_VERSAO "2.1"
+#define SAGUI_VERSAO "2.2.0"
 
 info_boot_t info_boot;
 const char *sagui_versao = SAGUI_VERSAO;

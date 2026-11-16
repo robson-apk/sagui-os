@@ -1,7 +1,6 @@
 /* navegador.h - o Cipó, navegador do SaguiOS (fase 6 da 2.0; H82 da 2.1).
  *
  * Arquivos:
- *   descompactar.c  DEFLATE, zlib, gzip
  *   png.c, jpeg.c   imagens da 2.0; imagens.c junta GIF e WebP
  *   html.c          leitura do HTML em árvore (2.0)
  *   motor/, fontes/, js/, graficos/   o motor do Cipó (pull request #6), cipo.h
@@ -12,6 +11,7 @@
 #include "sagui.h"
 #include "gui.h"
 #include "http.h"
+#include "compactar.h"   /* DEFLATE, zlib e gzip: na libsagui desde a H93 */
 #include "cipo.h"
 #include "motor/motor.h"
 
@@ -20,9 +20,6 @@ typedef struct {
     uint32_t *px;                 /* 0xAARRGGBB */
 } imagem_t;
 
-int inflar(const uint8_t *dados, uint32_t n, uint8_t *saida, uint32_t max);
-int inflar_zlib(const uint8_t *dados, uint32_t n, uint8_t *saida, uint32_t max);
-int inflar_gzip(const uint8_t *dados, uint32_t n, uint8_t *saida, uint32_t max);
 imagem_t *png_ler(const uint8_t *d, uint32_t n, char *erro, int max_erro);
 imagem_t *jpeg_ler(const uint8_t *d, uint32_t n, char *erro, int max_erro);
 imagem_t *imagem_ler(const uint8_t *d, uint32_t n, char *erro, int max_erro);   /* escolhe pelo começo do arquivo */

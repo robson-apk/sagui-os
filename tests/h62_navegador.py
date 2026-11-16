@@ -113,22 +113,24 @@ def compilar_referencia(saida, opcoes=("-O2",)):
     nav = os.path.join(RAIZ, "userland", "navegador")
     fontes = [os.path.join(RAIZ, "tests", "navegador", "teste_pagina.c")] + \
         [os.path.join(nav, f) for f in ("motor/motor.c", "motor/quebra.c", "fontes/fonte.c", "fontes/brotli.c",
-                                        "graficos/svg.c", "graficos/canvas2d.c", "imagens.c", "png.c", "jpeg.c",
-                                        "descompactar.c")] + \
+                                        "graficos/svg.c", "graficos/canvas2d.c", "imagens.c", "png.c", "jpeg.c")] + \
+        [os.path.join(RAIZ, "userland", "libsagui", "compactar.c")] + \
         [os.path.join(RAIZ, "terceiros", f) for f in ("font-rs/acumulador.c", "libwebp-vp8/vp8.c")] + \
         [os.path.join(RAIZ, "build", "gerado", "fonte8x16.c")]
     return subprocess.run(["gcc", "-m32", "-std=gnu11", *opcoes, "-msse2", "-mfpmath=sse", "-Wall", "-Wextra", "-Werror",
                            "-Wno-unused-function", "-Wno-misleading-indentation", "-Wno-unused-parameter", "-Wno-stringop-truncation",
                            "-finput-charset=UTF-8", "-fexec-charset=ISO-8859-1", "-DMOTOR_HOST",
                            "-DPASTA_FONTES_HOST=\"" + os.path.join(RAIZ, "rootfs") + "\"",
-                           "-I", os.path.join(RAIZ, "tests", "navegador", "simulado"), "-I", nav, "-o", saida] + fontes,
+                           "-I", os.path.join(RAIZ, "tests", "navegador", "simulado"), "-I", nav,
+                           "-I", os.path.join(RAIZ, "userland", "inc"), "-o", saida] + fontes,
                           capture_output=True, text=True)
 
 
 def testar_enderecos():
     programa = os.path.join(SAIDA, "h62-teste_enderecos")
     r = subprocess.run(["gcc", "-m32", "-std=gnu11", "-O1", "-g", "-fsanitize=address,undefined", "-Wall", "-Wextra", "-Werror",
-                        "-Wno-format-truncation", "-I", os.path.join(RAIZ, "tests", "navegador", "simulado"), "-o", programa,
+                        "-Wno-format-truncation", "-I", os.path.join(RAIZ, "tests", "navegador", "simulado"),
+                        "-I", os.path.join(RAIZ, "userland", "inc"), "-o", programa,
                         os.path.join(RAIZ, "tests", "navegador", "teste_enderecos.c"),
                         os.path.join(RAIZ, "userland", "navegador", "enderecos.c")], capture_output=True, text=True)
     if r.returncode != 0:

@@ -110,10 +110,11 @@ def testar_decodificadores():
     prog = os.path.join(SAIDA, "h82-teste_decodificar")
     r = subprocess.run(["gcc", "-m32", "-std=gnu11", "-O1", "-g", "-fsanitize=address,undefined", "-fno-sanitize-recover",
                         "-Wall", "-Wextra", "-Wno-unused-parameter", "-Wno-unused-function",
-                        "-I", os.path.join(RAIZ, "tests", "navegador", "simulado"), "-I", nav, "-o", prog,
+                        "-I", os.path.join(RAIZ, "tests", "navegador", "simulado"), "-I", nav,
+                        "-I", os.path.join(RAIZ, "userland", "inc"), "-o", prog,
                         os.path.join(RAIZ, "tests", "navegador", "teste_decodificar.c"),
                         os.path.join(nav, "imagens.c"), os.path.join(nav, "png.c"), os.path.join(nav, "jpeg.c"),
-                        os.path.join(nav, "descompactar.c"), os.path.join(RAIZ, "terceiros", "libwebp-vp8", "vp8.c")],
+                        os.path.join(RAIZ, "userland", "libsagui", "compactar.c"), os.path.join(RAIZ, "terceiros", "libwebp-vp8", "vp8.c")],
                        capture_output=True, text=True)
     if r.returncode != 0:
         raise FalhaTeste("teste dos decodificadores não compilou: " + r.stderr[-1500:])

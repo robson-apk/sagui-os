@@ -47,9 +47,11 @@ def verificar(condicao, mensagem, detalhe=""):
 def compilar():
     os.makedirs(PASTA, exist_ok=True)
     fontes = [os.path.join(RAIZ, "tests", "navegador", "teste_imagens.c")] + \
-             [os.path.join(NAV, f) for f in ("png.c", "jpeg.c", "descompactar.c")]
+             [os.path.join(NAV, f) for f in ("png.c", "jpeg.c")] + \
+             [os.path.join(RAIZ, "userland", "libsagui", "compactar.c")]   # o DEFLATE está na libsagui (H93)
     r = subprocess.run(["gcc", "-m32", "-std=gnu11", "-O2", "-Wall", "-Wextra", "-Werror", "-Wno-unused-function",
-                        "-I", os.path.join(RAIZ, "tests", "navegador", "simulado"), "-o", PROGRAMA] + fontes,
+                        "-I", os.path.join(RAIZ, "tests", "navegador", "simulado"),
+                        "-I", os.path.join(RAIZ, "userland", "inc"), "-o", PROGRAMA] + fontes,
                        capture_output=True, text=True)
     verificar(r.returncode == 0, "decodificadores compilam no computador", r.stderr[-2000:])
 

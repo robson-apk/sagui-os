@@ -39,6 +39,22 @@ código atual com os autores nos commits (veja [`CONTRIBUIDORES.md`](CONTRIBUIDO
 Acompanhe pelo painel [`dashboard/v2/`](dashboard/v2/index.html). Quer contribuir? Leia
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
+## A história do SaguiOS
+
+- **1.0: criado inteiramente por IA.** Escrito do zero pelo Claude (Anthropic), sob a direção
+  do Eli, sem código de outros sistemas e sem bibliotecas prontas.
+- **2.x: a comunidade chega.** O projeto passa a aceitar contribuições da comunidade e, nos
+  aplicativos, bibliotecas de terceiros, desde que livres, com licença compatível e crédito
+  (D041). O núcleo continua do zero.
+- **3.0: 64 bits e evolução contínua** *(em breve)*. O kernel passa a rodar em 64 bits
+  (x86-64), com os programas de antes funcionando sem mudança, e o projeto passa a seguir o
+  versionamento MAIOR.MENOR.CORREÇÃO, crescendo com a comunidade.
+
+O que entrou em cada versão, o que está em desenvolvimento e como os números das versões
+funcionam estão em [`VERSOES.md`](VERSOES.md). Dentro do sistema, o mesmo histórico aparece no
+botão "Histórico" da janela "Sobre o SaguiOS", e o botão "Créditos e licenças" mostra os
+textos de todas as licenças.
+
 ## O que é
 
 O SaguiOS é um sistema operacional completo, do carregador de boot ao jogo em 3D, escrito

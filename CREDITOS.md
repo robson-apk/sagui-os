@@ -7,6 +7,11 @@ raiz, usados pelo HTTPS para conferir que um site é quem diz ser; as fontes Dej
 do Unicode e da RFC 7932), a **imagem de fundo** da
 Mata Atlântica e, nos aplicativos, o código livre de terceiros da pasta `terceiros/`.
 
+Os textos de todas essas licenças vão **dentro da imagem**, em `/sistema/licencas/`, copiados
+no build por `tools/mklicencas.py`, e aparecem na janela "Créditos e licenças" (botão da janela
+"Sobre o SaguiOS"). As pastas de `terceiros/` entram sozinhas; dados e fontes novos precisam ser
+acrescentados à lista desse programa (D054).
+
 ## O que não foi escrito aqui
 
 ### Código de terceiros nos aplicativos (`terceiros/`)

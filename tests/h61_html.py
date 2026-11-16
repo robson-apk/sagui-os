@@ -36,7 +36,8 @@ def main():
     os.makedirs(PASTA, exist_ok=True)
     r = subprocess.run(["gcc", "-m32", "-std=gnu11", "-O1", "-g", "-fsanitize=address,undefined", "-fno-sanitize-recover",
                         "-Wall", "-Wextra", "-Werror",
-                        "-I", os.path.join(RAIZ, "tests", "navegador", "simulado"), "-o", PROGRAMA,
+                        "-I", os.path.join(RAIZ, "tests", "navegador", "simulado"),
+                        "-I", os.path.join(RAIZ, "userland", "inc"), "-o", PROGRAMA,
                         os.path.join(RAIZ, "tests", "navegador", "teste_html.c"),
                         os.path.join(RAIZ, "userland", "navegador", "html.c")], capture_output=True, text=True)
     verificar(r.returncode == 0, "leitor de HTML compila (com verificação de memória)", r.stderr[-2000:])

@@ -22,6 +22,12 @@ inspiradas nas do kernel do Linux e bem mais simples.
   `terceiros/`, com a licença original, listado em `CREDITOS.md` e dito
   claramente no pull request. Detalhes em [`AGENTS.md`](AGENTS.md) e na
   decisão D041 de `docs/decisoes.md`.
+- **Toda licença vai junto, dentro da imagem.** Cada componente de terceiros
+  traz o texto da sua licença, e ele aparece na janela "Créditos e licenças"
+  (no "Sobre o SaguiOS"). As licenças das pastas de `terceiros/` são copiadas
+  sozinhas pelo build para `/sistema/licencas` (e o build falha se faltar
+  uma); dados e fontes de fora precisam ser acrescentados à lista do
+  `tools/mklicencas.py`.
 - As ferramentas de build e de teste (Python, GCC, QEMU) ficam fora dessa regra.
 - Usou IA? Ótimo, mas a responsabilidade pelo que é enviado é **de quem envia
   o pull request e assina os commits** (o `Signed-off-by`), nunca do mantenedor
@@ -57,6 +63,12 @@ sob a GPL 3 (a licença do projeto, em [`LICENSE`](LICENSE)).
   Funcionalidade nova vem com teste novo em `tests/`.
 - Código, comentários e documentação em **português**, no estilo dos arquivos
   vizinhos.
+- **Comandos novos do shell** têm o nome do Unix e um apelido em português,
+  os dois na tabela `comandos[]` do `sagsh` (por exemplo, `sort` e
+  `ordenar`); os dois funcionam.
+- **Conte o que mudou** em [`VERSOES.md`](VERSOES.md), na seção "Em
+  desenvolvimento": é o histórico de versões, que também aparece dentro do
+  sistema. As versões seguem MAIOR.MENOR.CORREÇÃO (explicado no arquivo).
 
 ## 4. Como funciona a revisão
 

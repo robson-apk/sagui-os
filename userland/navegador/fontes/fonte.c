@@ -8,7 +8,7 @@
 #include "cipo.h"
 #include "../../../terceiros/font-rs/acumulador.h"
 
-/* DEFLATE com o cabeçalho zlib, o mesmo das imagens PNG (descompactar.c, da 2.0). */
+/* DEFLATE com o cabeçalho zlib, o mesmo das imagens PNG (na libsagui, compactar.c, desde a H93). */
 int inflar_zlib(const uint8_t *dados, uint32_t n, uint8_t *saida, uint32_t max);
 
 static unsigned u16(const uint8_t *p) { return (unsigned)p[0] << 8 | p[1]; }

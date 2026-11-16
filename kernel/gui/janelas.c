@@ -261,6 +261,9 @@ static const uint32_t *px_de(const char *processo)
         { "sagui-monitor", arte_px_monitor_40 }, { "top", arte_px_monitor_40 },                     /* H88 */
         { "visualizador", arte_px_visualizador_40 }, { "musica", arte_px_musica_40 }, { "tocador", arte_px_tocador_40 },
         { "saguicode-janela", arte_px_saguicode_40 },
+        { "jogos", arte_px_jogos_40 },
+        { "cacabananas", arte_px_cacabananas_40 }, { "paciencia", arte_px_paciencia_40 }, { "chip8", arte_px_chip8_40 },
+        { "jclic", arte_px_jclic_40 },
     };
     for (unsigned i = 0; i < sizeof t / sizeof t[0]; i++) if (txt_compara(t[i].p, processo) == 0) return t[i].px;
     return arte_px_instalado_40;
@@ -365,7 +368,7 @@ static const programa_menu_t catalogo[] = {
     { "Música", "/bin/musica", NULL, CAT_MIDIA, arte_px_musica_40, "tocador audio som wav m4a aac" },
     { "Tocador", "/bin/tocador", NULL, CAT_MIDIA, arte_px_tocador_40, "musica mp3 wav audio som" },
     { "Visualizador", "/bin/visualizador", NULL, CAT_MIDIA, arte_px_visualizador_40, "imagens fotos png jpeg gif" },
-    { "Banana", "/bin/banana", NULL, CAT_JOGOS, arte_px_banana_40, "jogo" },
+    { "Jogos", "/bin/jogos", NULL, CAT_JOGOS, arte_px_jogos_40, "jogo banana caca bananas paciencia chip8 jclic" },   /* H92: o lançador tem a Banana e os jogos novos */
     { "Sagui 3D", "/bin/sagui3d", NULL, CAT_JOGOS, arte_px_sagui3d_40, "jogo 3d" },
     { "Chuva de letras", "/bin/chuva", NULL, CAT_JOGOS, arte_px_chuva_40, "matrix protetor de tela" },
     { "Triângulos 3D", "/bin/triangulos", NULL, CAT_JOGOS, arte_px_triangulos_40, "fps desempenho demonstracao" },

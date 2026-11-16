@@ -58,7 +58,15 @@ e **só se tudo isto valer**:
    licença original e um `ORIGEM.md` (de onde veio, qual versão, o que mudou);
 3. ele é listado em `CREDITOS.md` e na seção "O que não foi escrito aqui" do
    README;
-4. a descrição do pull request diz isso **com todas as letras**.
+4. a descrição do pull request diz isso **com todas as letras**;
+5. o texto da licença vai **dentro da imagem** e aparece na janela "Créditos e
+   licenças" (botão da janela "Sobre o SaguiOS"; D054). Para as pastas de
+   `terceiros/` isso é automático: o build (`tools/mklicencas.py`) copia o
+   `ORIGEM.md` e os arquivos `LICENSE*`, `COPYING*`, `PATENTS*` e `NOTICE*` de
+   cada pasta para `/sistema/licencas`, e **para com erro** se uma pasta não
+   tiver licença. **Dados e fontes** de fora (como as fontes DejaVu, as tabelas
+   do Unicode e os certificados) não ficam em `terceiros/`: acrescente-os à
+   mão na lista do `tools/mklicencas.py`.
 
 Código de terceiros **nunca** vai para o núcleo, e nunca é misturado sem
 aviso no meio de um arquivo do SaguiOS. Fora do sistema (as ferramentas de
@@ -86,6 +94,21 @@ deixe misturado como se fosse original.
   alinhada em 16 bytes, e quem trocar de pilha precisa manter isso. Nada de
   divisão de 64 bits que precise da libgcc.
 - Siga o estilo do arquivo que você está mudando.
+- **Comandos do shell têm dois nomes**: o do Unix e um apelido em português
+  (`ls` e `listar`, `head` e `inicio`), os dois numa linha da tabela
+  `comandos[]` do `userland/programas/sagsh.c`. Os dois funcionam e aparecem
+  na `ajuda`. Um comando novo segue essa regra.
+- **Histórico de versões** em [`VERSOES.md`](VERSOES.md): toda mudança que
+  quem usa o sistema percebe ganha uma linha na seção "Em desenvolvimento".
+  O número da versão segue MAIOR.MENOR.CORREÇÃO, explicado no mesmo arquivo.
+- **Ícones são feitos em código**, em `tools/mkarte.py` (nada de imagem pronta
+  nem de gerador de imagens). Um programa novo ganha uma função que começa com
+  `estilo_app(t, cor_de_cima, cor_de_baixo)` (o fundo comum: caixa de cantos
+  redondos, degradê, brilho e sombra, no estilo criado por Robson de Lima
+  Barbosa no pull request #26) e desenha por cima um símbolo branco (ou na cor
+  do tema) com as formas do arquivo (`ret`, `disco`, `poligono`, `traco`,
+  `anel`, `bezier`), centrado em (32, 31) na grade de 64; depois, uma linha em
+  `ICONES`. O build gera os tamanhos 64 e 40.
 - Decisões de projeto importantes vão em `docs/decisoes.md` (uma seção nova,
   numerada); problemas encontrados e como foram resolvidos, em `docs/erros.md`.
 

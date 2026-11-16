@@ -162,6 +162,11 @@ char *ler_ate_o_fim(int fd, unsigned *tam);                         /* tudo até
 bool  converter_numero(const char *s, int *valor);             /* false se não for um inteiro decimal */
 int   minuscula_latin1(int c);
 
+/* ---- apoio aos programas de arquivos (H93; apoio_arquivos.c) ---- */
+int      ler_arquivo_inteiro(const char *caminho, uint8_t **dados);   /* tamanho (dados alocados), ou erro */
+uint32_t data_para_unix(const data_t *d);   /* segundos desde 1/1/1970 (tar, gzip) */
+uint32_t data_para_dos(const data_t *d);    /* hora << 16 | data, como no MS-DOS (zip) */
+
 int principal(int argc, char **argv);
 
 #endif

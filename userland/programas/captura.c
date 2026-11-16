@@ -23,8 +23,8 @@ static int pedaco(int fd, const char *tipo, const uint8_t *dados, uint32_t n)
     uint8_t cab[8], fim[4];
     por32(cab, n);
     memcpy(cab + 4, tipo, 4);
-    uint32_t c = crc32(0, tipo, 4);
-    c = crc32(c, dados, n);
+    uint32_t c = crc32_somar(0, tipo, 4);
+    c = crc32_somar(c, dados, n);
     por32(fim, c);
     if (escrever_tudo(fd, cab, 8) < 0) return -1;
     if (n && escrever_tudo(fd, dados, n) < 0) return -1;
@@ -35,7 +35,8 @@ int gravar_png(const char *caminho, const uint32_t *px, int l, int a)
 {
     uint32_t linha = 1 + (uint32_t)l * 3, bruto_n = linha * (uint32_t)a;
     uint8_t *bruto = aloca(bruto_n);
-    uint8_t *z = bruto ? aloca(DEFLAR_MAX(bruto_n) + 8) : NULL;
+    uint32_t zcap = 2 + deflar_limite(bruto_n) + 4;
+    uint8_t *z = bruto ? aloca(zcap) : NULL;
     if (!bruto || !z) { libera(bruto); return ERRO_SEM_MEMORIA; }
     for (int y = 0; y < a; y++) {
         uint8_t *p = bruto + (uint32_t)y * linha;
@@ -43,7 +44,11 @@ int gravar_png(const char *caminho, const uint32_t *px, int l, int a)
         const uint32_t *s = px + (uint32_t)y * (uint32_t)l;
         for (int x = 0; x < l; x++) { *p++ = (uint8_t)(s[x] >> 16); *p++ = (uint8_t)(s[x] >> 8); *p++ = (uint8_t)s[x]; }
     }
-    int zn = deflar_zlib(bruto, bruto_n, z, DEFLAR_MAX(bruto_n) + 8);
+    /* Fluxo zlib (RFC 1950): cabeçalho 78 01, o DEFLATE da libsagui e o
+     * Adler-32 dos dados brutos, do byte mais alto para o mais baixo. */
+    z[0] = 0x78; z[1] = 0x01;
+    int zn = deflar(bruto, bruto_n, z + 2, zcap - 6, 6);
+    if (zn >= 0) { por32(z + 2 + zn, adler32_somar(1, bruto, bruto_n)); zn += 6; }
     libera(bruto);
     if (zn < 0) { libera(z); return ERRO_SEM_MEMORIA; }
     int fd = abrir(caminho, ABRIR_ESCREVER | ABRIR_CRIAR | ABRIR_TRUNCAR);

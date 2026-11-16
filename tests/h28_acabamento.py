@@ -39,7 +39,7 @@ def main():
         m.esperar_serial("sobre: versao", 15)
         s = m.serial()
         v = re.findall(r"sobre: versao (.*?), imagem (\d+) bytes, (\d+) processos", s)[-1]
-        verificar(v[0].startswith("2.1") and int(v[1]) == tamanho, f"Sobre mostra a versão {v[0]} e o tamanho da imagem ({v[1]} bytes)")
+        verificar(v[0] == "2.2.0" and int(v[1]) == tamanho, f"Sobre mostra a versão {v[0]} e o tamanho da imagem ({v[1]} bytes)")
         verificar(int(v[2]) >= 7, f"Sobre mostra {v[2]} processos ativos (ocioso, janelas, terminal, sagsh e os programas abertos)")
         time.sleep(1)
         m.captura("H28-programas-abertos")

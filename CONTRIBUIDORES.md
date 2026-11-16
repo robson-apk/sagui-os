@@ -24,5 +24,7 @@
   a ideia da página inicial com sites que funcionam sem HTTPS (pull request #3; H82 e H83).
 - **Alejandro Anuncibay** ([@aleanun89](https://github.com/aleanun89)): a pergunta sobre
   adaptar o SaguiOS para o espanhol (issue #5), que levou às regras de contribuição, e o
-  fork SaguiOS-Extended, de onde veio o layout espanhol do teclado (H90).
+  fork SaguiOS-Extended, de onde vieram o layout espanhol do teclado (H90), os comandos de
+  terminal (H91), os jogos, reescritos como Caça-Bananas, Paciência Banana, CHIP-8 e
+  Atividades JClic (H92), e os programas gzip, tar e zip (H93).
 

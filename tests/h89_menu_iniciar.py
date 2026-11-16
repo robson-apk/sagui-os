@@ -5,7 +5,7 @@ Critérios:
   - o menu abre no botão do sagui e mostra a grade com os programas;
   - digitar com o menu aberto vai para a busca (sem acento acha acentuado:
     "musica" acha "Música") e Enter abre o primeiro resultado;
-  - clicar numa categoria filtra a grade (Jogos mostra Banana);
+  - clicar numa categoria filtra a grade (Jogos mostra o lançador de jogos);
   - clicar num ícone da grade abre o programa;
   - Esc fecha o menu;
   - capturas para a revisão a olho.
@@ -76,10 +76,10 @@ def main():
         time.sleep(0.5)
         m.captura("H89-jogos")
         verificar(True, "o clique na categoria Jogos filtra")
-        # O primeiro jogo é a Banana.
+        # O primeiro jogo é o lançador "Jogos" (H92: tem a Banana e os jogos novos).
         m.clique(GRADE_X + 50, GRADE_Y + 40)
-        esperar(m, "[GUI] menu: Banana", 10, n)
-        verificar(True, "o clique na grade abre o programa (Banana)")
+        esperar(m, "[GUI] menu: Jogos", 10, n)
+        verificar(True, "o clique na grade abre o programa (Jogos)")
         time.sleep(1.5)
 
         # Esc fecha.

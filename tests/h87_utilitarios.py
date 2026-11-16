@@ -180,19 +180,7 @@ def main():
         b = m.comando("wc /historia/linux.txt")
         verificar(contagem(a) is not None and contagem(a) == contagem(b), f"tar xf extrai igual ao original ({contagem(a)})")
         m.comando("cd /")
-        out = m.comando("zip -q /usb/h.zip /historia /arte/sagui.txt")
-        verificar(re.search(r"/usb/h\.zip: \d+ itens", out), "zip cria o pacote")
-        out = m.comando("unzip -l /usb/h.zip")
-        verificar("historia/linux.txt" in out, "unzip -l lista o pacote do zip")
-        out = m.comando("unzip /usb/h.zip -d /tmp/z")
-        a = m.comando("wc /tmp/z/historia/linux.txt")
-        verificar(contagem(a) is not None and contagem(a) == contagem(b), f"unzip extrai o que o zip comprimiu ({contagem(a)})")
-        out = m.comando("unzip /usb/host.zip -d /tmp/hz")
-        verificar("2 arquivos extraídos" in out or "2 arquivos extra" in out, "unzip extrai um .zip feito pelo Python (deflate e guardado)")
-        out = m.comando("cat /tmp/hz/doc/curto.txt")
-        verificar("sagui" in out, "o arquivo guardado (método 0) sai igual")
-        out = m.comando("unzip /usb/ruim.zip -d /tmp/ruim")
-        verificar("CRC não confere" in out or "CRC n" in out, "unzip recusa um arquivo com o CRC errado")
+        # zip e unzip: são os do H93 (fork do Alejandro), testados no h93_compactar.
 
         # ---------------------------------------------------- less
         antes = len(m.serial())
@@ -283,8 +271,8 @@ def main():
         m.esperar_serial("arquivos: pasta /tmp (", 30)
         time.sleep(1)
         a = janela(m.serial(), "Arquivos")
-        # /tmp tem hz/, ruim/, t/, z/ e lx.txt: lx.txt é o 5º (pastas primeiro)
-        m.clique(a["x"] + 146 + 120, a["y"] + 70 + 2 + 4 * 20 + 8)
+        # /tmp tem t/ e lx.txt: lx.txt é o 2º (pastas primeiro)
+        m.clique(a["x"] + 146 + 120, a["y"] + 70 + 2 + 1 * 20 + 8)
         m.tecla("delete")
         m.esperar_serial('"Apagar"', 10)
         time.sleep(0.5)
@@ -352,17 +340,10 @@ def main():
     pasta = os.path.join(SAIDA, "h87-saida")
     shutil.rmtree(pasta, ignore_errors=True)
     os.makedirs(pasta)
-    for nome in ("h.tar", "h.zip"):
+    for nome in ("h.tar",):
         mtools(pen, "mcopy", "-o", f"p:/{nome}", os.path.join(pasta, nome))
     with tarfile.open(os.path.join(pasta, "h.tar")) as t:
         verificar(t.extractfile("historia/linux.txt").read() == linux_sagui, "o .tar do SaguiOS abre no tarfile do Python, igual ao original")
-    with zipfile.ZipFile(os.path.join(pasta, "h.zip")) as zf:
-        verificar(zf.testzip() is None, "o .zip do SaguiOS passa no testzip do Python (CRC de tudo)")
-        verificar(zf.read("historia/linux.txt") == linux_sagui and zf.read("arte/sagui.txt") == sagui_txt,
-                  "o conteúdo do .zip é igual ao rootfs")
-        info = zf.getinfo("historia/linux.txt")
-        verificar(info.compress_type == zipfile.ZIP_DEFLATED and info.compress_size < info.file_size,
-                  f"o texto foi comprimido com deflate ({info.file_size} -> {info.compress_size} bytes)")
     cap_local = os.path.join(pasta, "captura.png")
     mtools(pen, "mcopy", "-o", "p:" + nome_cap[len("/usb"):], cap_local)
     png = Image.open(cap_local)

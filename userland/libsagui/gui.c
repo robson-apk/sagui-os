@@ -184,6 +184,30 @@ void g_desenho(jan_t *j, int x, int y, const char *const *linhas, int l, int a,
         }
 }
 
+/* Imagem ARGB (0xAARRGGBB) com transparência: cada pixel é misturado com o
+ * que já está na janela, na proporção do alfa. Serve para os ícones gerados
+ * por tools/mkarte.py (H92: o lançador de jogos) e para imagens com canal
+ * alfa. Só inteiros: (fundo * (255 - a) + cor * a) / 255 por canal. */
+void g_imagem(jan_t *j, int x, int y, const uint32_t *px, int l, int a)
+{
+    for (int lin = 0; lin < a; lin++) {
+        int yy = y + lin;
+        if (yy < 0 || yy >= j->alt) continue;
+        for (int col = 0; col < l; col++) {
+            int xx = x + col;
+            if (xx < 0 || xx >= j->larg) continue;
+            uint32_t c = px[lin * l + col], al = c >> 24;
+            if (!al) continue;
+            uint32_t *d = &j->px[yy * j->larg + xx];
+            if (al == 255) { *d = c & 0xFFFFFF; continue; }
+            uint32_t r = (((*d >> 16) & 255) * (255 - al) + ((c >> 16) & 255) * al) / 255;
+            uint32_t g = (((*d >> 8) & 255) * (255 - al) + ((c >> 8) & 255) * al) / 255;
+            uint32_t b = ((*d & 255) * (255 - al) + (c & 255) * al) / 255;
+            *d = r << 16 | g << 8 | b;
+        }
+    }
+}
+
 /* Moldura em relevo: clara em cima e à esquerda, escura embaixo e à direita
  * (ou o contrário, para parecer afundada). */
 void g_relevo(jan_t *j, int x, int y, int l, int a, bool afundado)

@@ -198,6 +198,11 @@ typedef struct {
     unsigned int imagem_bytes;   /* tamanho útil da imagem de boot */
     unsigned int segundos_ligado;
     unsigned int largura, altura;
+    /* H94: 32 ou 64, a largura das palavras do kernel. Foi acrescentado no
+     * fim, e só é preenchido quando o programa pede o tamanho novo: um
+     * programa compilado antes (que pede 48 bytes) continua recebendo só os
+     * campos que conhece, sem ter memória escrita além da sua variável. */
+    unsigned int bits;
 } info_versao_t;
 
 typedef struct {
@@ -290,10 +295,15 @@ typedef struct {
 #define TECLA_PGDN      0x107
 #define TECLA_INSERT    0x108
 #define TECLA_DELETE    0x109
-#define TECLA_F2        0x10B   /* renomear no Arquivos (H91); F1 é 0x10A, F12 0x115 */
+#define TECLA_F1        0x10A   /* F1 a F12 seguem em ordem (H92: F2 = partida nova nos jogos; F2 renomeia no Arquivos) */
+#define TECLA_F2        0x10B
+#define TECLA_F3        0x10C
+#define TECLA_F4        0x10D
+#define TECLA_F5        0x10E
+#define TECLA_F12       0x115
 #define TECLA_ESC       0x116
-#define TECLA_IMPRIMIR  0x117   /* Print Screen (H87): o gerenciador de janelas abre o /bin/captura */
-#define TECLA_SUPER     0x118   /* tecla Windows (H95): fica no gerenciador de janelas */
+#define TECLA_SUPER     0x117   /* tecla Windows: fica no gerenciador de janelas */
+#define TECLA_IMPRIMIR  0x118   /* Print Screen (H87): o gerenciador de janelas abre o /bin/captura */
 #endif
 
 #define JANELA_LARG_MAX 1000
