@@ -22,6 +22,7 @@
   trazidos na H81 e na H83).
 - **M4R4G0N** ([@M4R4G0N](https://github.com/M4R4G0N)): o nome "Cipó" para o navegador e
   a ideia da página inicial com sites que funcionam sem HTTPS (pull request #3; H82 e H83).
-- **Alejandro Anuncibay**: a pergunta sobre adaptar o SaguiOS para o espanhol (issue #5),
-  que levou às regras de contribuição.
+- **Alejandro Anuncibay** ([@aleanun89](https://github.com/aleanun89)): a pergunta sobre
+  adaptar o SaguiOS para o espanhol (issue #5), que levou às regras de contribuição, e o
+  fork SaguiOS-Extended, de onde veio o layout espanhol do teclado (H90).
 

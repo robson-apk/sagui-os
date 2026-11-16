@@ -1,4 +1,4 @@
-/* h264.h - decodificador H.264 Baseline (h264.c). */
+/* h264.h - decodificador H.264 Baseline, Main e High (h264.c). */
 #ifndef SAGUI_H264_H
 #define SAGUI_H264_H
 
@@ -17,6 +17,8 @@ h264_t *h264_novo(void);
 void    h264_fim(h264_t *h);
 /* avcC do MP4: lê SPS/PPS e devolve o tamanho do prefixo de cada NAL. */
 int     h264_config(h264_t *h, const uint8_t *avcc, int n, int *tam_len);
+/* Depois de um H264_SEM_SUPORTE: o que o vídeo tem que o decodificador não faz (ou NULL). */
+const char *h264_motivo(h264_t *h);
 /* Uma amostra do MP4 (um quadro): NALs com prefixo de tamanho. */
 int     h264_amostra(h264_t *h, const uint8_t *d, int n, int tam_len);
 int     h264_nal(h264_t *h, const uint8_t *nal, int n);

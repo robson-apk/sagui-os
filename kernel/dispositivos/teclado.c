@@ -1,4 +1,5 @@
-/* teclado.c - driver do teclado PS/2 (controlador i8042, IRQ 1), layout ABNT2.
+/* teclado.c - driver do teclado PS/2 (controlador i8042, IRQ 1), layouts
+ * ABNT2 (o padrão) e espanhol (ES, H90).
  *
  * O controlador entrega um byte por interrupção na porta 0x60. Com a tradução
  * ligada pela BIOS (padrão), os bytes seguem o "scan code set 1": cada tecla
@@ -7,10 +8,23 @@
  *
  * O trabalho do driver é transformar essa sequência em teclas com
  * significado: acompanhar Shift, Ctrl, Alt, AltGr e Caps Lock, aplicar o
- * mapa ABNT2 (PRD 4.4) e combinar as teclas mortas (´ ` ~ ^ ¨) com a letra
- * seguinte. O resultado vai para um buffer circular que o terminal lê. */
+ * mapa do layout escolhido (ABNT2, PRD 4.4, ou ES) e combinar as teclas
+ * mortas (´ ` ~ ^ ¨) com a letra seguinte. O resultado vai para um buffer
+ * circular que o terminal lê.
+ *
+ * O layout vem da configuração "teclado.layout" (abnt2 ou es, H37/H90):
+ * a cada tecla apertada o driver olha se as configurações mudaram e, se
+ * mudaram, relê a chave. Assim o comando "teclado" e o app Configurações
+ * só precisam gravar a configuração, sem chamada de sistema nova.
+ *
+ * O layout espanhol veio do fork SaguiOS-Extended de Alejandro Anuncibay
+ * e foi reescrito sobre este driver. As posições seguem o teclado espanhol
+ * ISO (105 teclas) como vem gravado nas teclas; os códigos de varredura
+ * são os mesmos do ABNT2, porque o código diz a posição física da tecla,
+ * não o que está desenhado nela. */
 #include "teclado.h"
 #include "console.h"
+#include "configuracoes.h"
 #include "cpu.h"
 #include "portas.h"
 #include "processo.h"
@@ -23,6 +37,7 @@
 /* Mapa ABNT2: [scan code] = { normal, com Shift }. Teclas mortas são marcadas
  * com o próprio acento somado a MORTA; 0 = tecla sem caractere. */
 #define MORTA 0x8000
+static uint8_t morta;   /* acento esperando a próxima letra (0 = nenhum) */
 static const uint16_t mapa[0x80][2] = {
     [0x02] = {'1', '!'}, [0x03] = {'2', '@'}, [0x04] = {'3', '#'}, [0x05] = {'4', '$'},
     [0x06] = {'5', '%'}, [0x07] = {'6', MORTA | 0xA8 /* ¨ */}, [0x08] = {'7', '&'},
@@ -43,9 +58,64 @@ static const uint16_t mapa[0x80][2] = {
     [0x56] = {'\\', '|'}, [0x73] = {'/', '?'}, [0x7E] = {'.', '.'},
 };
 
-/* AltGr (Alt da direita) no ABNT2: os símbolos gravados no canto das teclas. */
+/* Mapa espanhol (ES), no mesmo formato. Diferenças que mais aparecem:
+ * ñ à direita do L, ç à direita do ´, ' ? e ¡ ¿ à direita do 0, º ª à
+ * esquerda do 1, acento agudo e trema (´ ¨) mortos à direita do ñ e grave
+ * e circunflexo (` ^) mortos à direita do P. */
+static const uint16_t mapa_es[0x80][2] = {
+    [0x29] = {0xBA /* º */, 0xAA /* ª */},
+    [0x02] = {'1', '!'}, [0x03] = {'2', '"'}, [0x04] = {'3', 0xB7 /* · */}, [0x05] = {'4', '$'},
+    [0x06] = {'5', '%'}, [0x07] = {'6', '&'}, [0x08] = {'7', '/'}, [0x09] = {'8', '('},
+    [0x0A] = {'9', ')'}, [0x0B] = {'0', '='}, [0x0C] = {'\'', '?'},
+    [0x0D] = {0xA1 /* ¡ */, 0xBF /* ¿ */}, [0x0E] = {'\b', '\b'}, [0x0F] = {'\t', '\t'},
+    [0x10] = {'q', 'Q'}, [0x11] = {'w', 'W'}, [0x12] = {'e', 'E'}, [0x13] = {'r', 'R'},
+    [0x14] = {'t', 'T'}, [0x15] = {'y', 'Y'}, [0x16] = {'u', 'U'}, [0x17] = {'i', 'I'},
+    [0x18] = {'o', 'O'}, [0x19] = {'p', 'P'},
+    [0x1A] = {MORTA | '`', MORTA | '^'}, [0x1B] = {'+', '*'}, [0x1C] = {'\n', '\n'},
+    [0x1E] = {'a', 'A'}, [0x1F] = {'s', 'S'}, [0x20] = {'d', 'D'}, [0x21] = {'f', 'F'},
+    [0x22] = {'g', 'G'}, [0x23] = {'h', 'H'}, [0x24] = {'j', 'J'}, [0x25] = {'k', 'K'},
+    [0x26] = {'l', 'L'}, [0x27] = {0xF1 /* ñ */, 0xD1 /* Ñ */},
+    [0x28] = {MORTA | 0xB4 /* ´ */, MORTA | 0xA8 /* ¨ */}, [0x2B] = {0xE7 /* ç */, 0xC7 /* Ç */},
+    [0x2C] = {'z', 'Z'}, [0x2D] = {'x', 'X'}, [0x2E] = {'c', 'C'}, [0x2F] = {'v', 'V'},
+    [0x30] = {'b', 'B'}, [0x31] = {'n', 'N'}, [0x32] = {'m', 'M'}, [0x33] = {',', ';'},
+    [0x34] = {'.', ':'}, [0x35] = {'-', '_'}, [0x37] = {'*', '*'}, [0x39] = {' ', ' '},
+    [0x4A] = {'-', '-'}, [0x4E] = {'+', '+'},
+    [0x56] = {'<', '>'},
+};
+
+static bool layout_es;   /* false = ABNT2 */
+
+/* Relê "teclado.layout" quando as configurações mudaram desde a última
+ * olhada. Roda na interrupção, mas config_obter só percorre uma tabela
+ * pequena na memória, sem esperar por nada. */
+static void conferir_layout(void)
+{
+    static uint32_t vista = 0xFFFFFFFFu;
+    if (config_geracao() == vista) return;
+    vista = config_geracao();
+    const char *v = config_obter("teclado.layout");
+    bool es = v && txt_compara(v, "es") == 0;
+    if (es != layout_es) {
+        layout_es = es;
+        morta = 0;   /* um acento pendente do layout antigo não vale no novo */
+    }
+}
+
+/* AltGr (Alt da direita): os símbolos gravados no canto das teclas. No ES o
+ * ~ do AltGr+4 é morto, como o ~ do ABNT2 (~ + n = ñ, ~ + espaço = ~). O
+ * euro (AltGr+E e AltGr+5) não existe no Latin-1 e fica de fora. */
 static uint16_t com_altgr(uint8_t sc)
 {
+    if (layout_es) {
+        switch (sc) {
+        case 0x29: return '\\';  case 0x02: return '|';   case 0x03: return '@';
+        case 0x04: return '#';   case 0x05: return MORTA | '~';
+        case 0x07: return 0xAC;  /* ¬ */
+        case 0x1A: return '[';   case 0x1B: return ']';
+        case 0x28: return '{';   case 0x2B: return '}';
+        default: return 0;
+        }
+    }
     switch (sc) {
     case 0x10: return '/';   case 0x11: return '?';   case 0x12: return 0xB0; /* ° */
     case 0x02: return 0xB9;  case 0x03: return 0xB2;  case 0x04: return 0xB3; /* ¹ ² ³ */
@@ -83,7 +153,6 @@ static uint16_t buffer[TAM_BUFFER];
 static volatile uint32_t ini, fim;
 static uint32_t mods;
 static bool estendida, num_lock;
-static uint8_t morta;   /* acento esperando a próxima letra (0 = nenhum) */
 
 static void guardar(int tecla)
 {
@@ -184,6 +253,7 @@ void teclado_byte(uint8_t b)
     }
     if (solta)
         return;
+    conferir_layout();
 
     if (sc == 0x3A) { mods ^= MOD_CAPS; atualizar_leds(); return; }
     if (sc == 0x45) { num_lock = !num_lock; atualizar_leds(); return; }
@@ -202,25 +272,27 @@ void teclado_byte(uint8_t b)
     if (sc >= 0x47 && sc <= 0x53 && sc != 0x4A && sc != 0x4E) {
         if (!num_lock) { int n = navegacao(sc); if (n) guardar(n); return; }
         static const char numerico[] = "789-456+1230,";   /* vírgula: o "Del" do ABNT2 */
-        caractere(numerico[sc - 0x47]);
+        caractere(sc == 0x53 && layout_es ? '.' : numerico[sc - 0x47]);   /* no ES é ponto */
         return;
     }
 
     uint16_t v;
+    const uint16_t (*mp)[2] = layout_es ? mapa_es : mapa;
+    uint8_t base = (uint8_t)mp[sc][0];
     if (mods & MOD_ALTGR) {
         v = com_altgr(sc);
-        if (v) caractere(v);
-        return;
+        if (!v) return;
+        if (!(v & MORTA)) { caractere(v); return; }
+    } else {
+        bool shift = mods & MOD_SHIFT;
+        v = mp[sc][shift ? 1 : 0];
+        if (!v)
+            return;
+        /* Caps Lock inverte só as letras (e o ç e o ñ). */
+        bool letra = (base >= 'a' && base <= 'z') || base == 0xE7 || base == 0xF1;
+        if (letra && (mods & MOD_CAPS))
+            v = mp[sc][shift ? 0 : 1];
     }
-    bool shift = mods & MOD_SHIFT;
-    v = mapa[sc][shift ? 1 : 0];
-    if (!v)
-        return;
-    /* Caps Lock inverte só as letras (e o ç). */
-    uint8_t base = (uint8_t)mapa[sc][0];
-    bool letra = (base >= 'a' && base <= 'z') || base == 0xE7;
-    if (letra && (mods & MOD_CAPS))
-        v = mapa[sc][shift ? 0 : 1];
     if (v & MORTA) {
         if (morta) { uint8_t a = morta; morta = 0; guardar(a); }   /* duas mortas seguidas */
         morta = (uint8_t)(v & 0xFF);

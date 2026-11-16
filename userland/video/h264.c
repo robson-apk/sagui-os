@@ -1,14 +1,18 @@
-/* h264.c - decodificador H.264 perfis Baseline e Main (CAVLC e CABAC, quadros I, P e B).
+/* h264.c - decodificador H.264 perfis Baseline, Main e High (CAVLC e CABAC, quadros I, P e B).
  *
- * É o vídeo da maioria dos MP4 "compatíveis" (avc1.42001E e parecidos).
+ * É o vídeo da maioria dos MP4 (avc1.42001E, avc1.640028 e parecidos).
  * Veio do pull request #6 (Robson de Lima Barbosa); as tabelas que seguem o
- * FFmpeg estão em terceiros/ffmpeg-h264-tabelas (D043).
+ * FFmpeg estão em terceiros/ffmpeg-h264-tabelas (D043). O perfil High foi
+ * acrescentado aqui, a partir do texto da Recomendação ITU-T H.264 (D048);
+ * os comentários dessas partes dizem o item da norma de onde cada regra saiu.
  *
  * Cobre: SPS/PPS, fatias I e P, vários quadros de referência com janela deslizante e reordenação da lista, predição intra 4x4 e 16x16,
  * croma 4:2:0, compensação de movimento com quarto de pixel e o filtro de
  * desbloqueio; e o perfil Main: CABAC, quadros B (predição direta espacial
  * e temporal), predição ponderada explícita e implícita e saída na ordem de
- * exibição (POC). Fica de fora: campos entrelaçados, transformada 8x8 (High).
+ * exibição (POC); e o perfil High progressivo, 4:2:0, 8 bits: a transformada
+ * 8x8, a predição intra 8x8 e as matrizes de escala. Fica de fora: campos
+ * entrelaçados, 4:2:2/4:4:4, mais de 8 bits e o modo sem perdas.
  *
  * Só inteiros. Compila também no Linux (H264_HOST) para comparar quadro a
  * quadro com o ffmpeg. */
@@ -22,12 +26,22 @@
 #define aloca malloc
 #define libera free
 static void *aloca_zerado(size_t n) { return calloc(1, n); }
+/* Só no PC: contagens para o teste saber que o vídeo exercitou o perfil High
+ * (veja tests/video_pc). 0: MBs; 1: MBs intra 8x8; 2: MBs inter com a
+ * transformada 8x8; 3: fatias CABAC; 4: fatias CAVLC; 5: PPS com matrizes
+ * de escala; 6: fatias B; 7 a 15: blocos intra 8x8 por modo (0 a 8); 16:
+ * fatias CABAC cujos dados não acabaram junto com o NAL (sinal de que algum
+ * símbolo foi lido errado no caminho). */
+long h264_contagem[17];
+#define CONTA(i) (h264_contagem[i]++)
 #else
 #include "sagui.h"
 #define DBG(...) do { } while (0)
+#define CONTA(i) do { } while (0)
 #endif
 #include "h264.h"
 #include "../../terceiros/ffmpeg-h264-tabelas/cabac_tab.h"   /* FFmpeg, LGPL 2.1+ (D043) */
+#include "h264_alto_tab.h"                                    /* números da norma para o High (D048) */
 
 /* ------------------------------------------------------------------ bits */
 
@@ -103,6 +117,33 @@ static const uint8_t blk_x[16] = { 0,1,0,1,2,3,2,3,0,1,0,1,2,3,2,3 };
 static const uint8_t blk_y[16] = { 0,0,1,1,0,0,1,1,2,2,3,3,2,2,3,3 };
 static uint8_t blk_ordem[4][4];   /* [y][x] -> índice */
 
+/* Varredura em ziguezague de um bloco 8x8 de quadro (tabela 8-13 da norma):
+ * posição na varredura -> y * 8 + x. Não é guardada, é montada (veja
+ * montar_zigzag8): é o mesmo passeio pelas diagonais do zigzag[] 4x4 acima. */
+static uint8_t zigzag8[64];
+
+/* O ziguezague começa no canto de cima à esquerda e percorre as diagonais,
+ * uma subindo para a direita, a seguinte descendo para a esquerda, de modo
+ * que os coeficientes de frequência baixa (os que quase sempre existem)
+ * venham primeiro. Nas diagonais de soma x + y par se sobe; nas ímpares se
+ * desce; ao bater numa borda, anda-se uma casa ao longo dela. */
+static void montar_zigzag8(void)
+{
+    int x = 0, y = 0;
+    for (int k = 0; k < 64; k++) {
+        zigzag8[k] = (uint8_t)(y * 8 + x);
+        if (((x + y) & 1) == 0) {
+            if (x == 7) y++;
+            else if (y == 0) x++;
+            else { x++; y--; }
+        } else {
+            if (y == 7) x++;
+            else if (x == 0) y++;
+            else { x--; y++; }
+        }
+    }
+}
+
 /* Tabelas de consulta direta: espia N bits, sai (tamanho << 8) | valor. */
 static uint16_t *vlc_ct[5];        /* 4 de nC + croma DC; 16 bits */
 static uint16_t *vlc_tz[15], *vlc_tzc[3], *vlc_rb[7];
@@ -134,6 +175,7 @@ static bool vlc_iniciar(void)
     for (int k = 0; k < 3; k++) vlc_tzc[k] = vlc_montar(3, 4, tzc_len[k], tzc_bits[k], seq);
     for (int k = 0; k < 7; k++) vlc_rb[k] = vlc_montar(11, 16, rb_len[k], rb_bits[k], seq);
     for (int i = 0; i < 16; i++) blk_ordem[blk_y[i]][blk_x[i]] = (uint8_t)i;
+    montar_zigzag8();
     vlc_pronto = true;
     return true;
 }
@@ -155,12 +197,14 @@ static inline int vlc_ler(bits_t *b, const uint16_t *t, int nbits)
 
 typedef struct {        /* informação guardada por macrobloco */
     int8_t  intra;          /* 0 inter, 1 intra, 2 I_PCM */
-    int8_t  i4x4, i16, skip, direto;
-    int8_t  qp, qpc, qpd, cbp, modo_croma;
+    int8_t  i4x4, i16, skip, direto;   /* i4x4 = I_NxN: intra 4x4 ou, com t8, intra 8x8 */
+    int8_t  t8;             /* transform_size_8x8_flag: a luma deste MB usa a transformada 8x8 (High) */
+    int8_t  qp, qpc[2], qpd, cbp, modo_croma;   /* qpc: QP da croma, Cb e Cr (podem diferir no High) */
     int     fatia;
-    uint8_t nz[16 + 8];     /* coeficientes por bloco 4x4 (luma raster, depois Cb 4, Cr 4) */
+    uint8_t nz[16 + 8];     /* coeficientes por bloco 4x4 (luma raster, depois Cb 4, Cr 4);
+                               num bloco 8x8 lido pelo CABAC, os quatro 4x4 dele levam a conta do 8x8 */
     uint8_t dc;             /* CABAC: DC codificado (bit 0 luma, 1 Cb, 2 Cr) */
-    int8_t  modo4[16];      /* raster */
+    int8_t  modo4[16];      /* raster; na intra 8x8 o modo do bloco vale nos seus quatro 4x4 */
     int8_t  refidx[2][4];   /* por 8x8 e lista; -1 = lista não usada */
     int8_t  ref[2][4];      /* id do quadro de referência (&127) ou -1 */
     int16_t mv[2][16][2];   /* raster */
@@ -189,6 +233,14 @@ struct h264 {
     /* PPS */
     int cabac, ref_padrao[2], qp_inicial, croma_qp_off, ctrl_desbloq, redundante, poc_inferior;
     int ponderada, bipred;
+    /* High: SPS e PPS */
+    int t8_modo;                    /* transform_8x8_mode_flag: os MBs podem escolher a transformada 8x8 */
+    int croma_qp_off2;              /* second_chroma_qp_index_offset: o ajuste de QP do Cr */
+    bool sps_matriz, pps_matriz;    /* quem mandou matrizes de escala */
+    uint8_t sps_l[8][64], pps_l[8][64];   /* as 8 listas de escala (6 de 4x4, 2 de 8x8), em ziguezague */
+    uint16_t ls4[6][6][16];         /* LevelScale4x4 [lista][QP % 6][y * 4 + x] */
+    uint16_t ls8[2][6][64];         /* LevelScale8x8 [intra, inter][QP % 6][y * 8 + x] */
+    const char *motivo;             /* por que o SPS ou o PPS foi recusado */
     /* fatia */
     int tipo, frame_num, nal_ref, idr, qp, num_ref[2];
     int direto_espacial, cabac_init;
@@ -255,13 +307,87 @@ void h264_fim(h264_t *h)
 
 /* ---------------------------------------------------------- SPS / PPS */
 
-static void pular_escala(bits_t *b, int n)
+/* Matrizes de escala (High). O codificador pode dar um peso a cada
+ * frequência do bloco: o passo da quantização deixa de ser um só para o
+ * bloco inteiro, e as frequências altas (que o olho nota menos) podem ser
+ * guardadas com menos precisão. São 8 listas: seis para blocos 4x4 (Y, Cb e
+ * Cr de MBs intra, depois os três dos inter) e duas para 8x8 (Y intra e
+ * inter). Sem matrizes, todo peso é 16 ("Flat_4x4_16"), que dá a mesma conta
+ * do Baseline e do Main.
+ *
+ * Uma lista (item 7.3.2.1.1.1, scaling_list) vem na ordem do ziguezague, cada
+ * valor como diferença para o anterior (começando em 8). Uma diferença que
+ * leve a zero quer dizer "daqui para a frente repete o último"; se isso
+ * acontece logo no primeiro valor, a lista inteira é a padrão da norma.
+ * Devolve false nesse último caso. */
+static bool ler_lista_escala(bits_t *b, uint8_t *lista, int n)
 {
     int ultimo = 8, prox = 8;
+    bool usar_padrao = false;
     for (int j = 0; j < n; j++) {
-        if (prox) prox = (ultimo + se(b) + 256) % 256;
-        ultimo = prox ? prox : ultimo;
+        if (prox) {
+            prox = (ultimo + se(b) + 256) & 255;
+            if (j == 0 && prox == 0) usar_padrao = true;
+        }
+        lista[j] = (uint8_t)(prox ? prox : ultimo);
+        ultimo = lista[j];
     }
+    return !usar_padrao;
+}
+
+/* Lê as "qtd" primeiras das 8 listas; cada uma tem um bit dizendo se veio.
+ * Para a que não veio vale a tabela 7-2 da norma: a primeira de cada grupo
+ * (listas 0, 3, 6 e 7) cai na lista padrão (regra A, base == NULL) ou na
+ * lista de mesmo número do SPS (regra B, usada no PPS quando o SPS mandou
+ * matrizes); as outras (Cb e Cr) copiam a anterior do mesmo grupo. */
+static void ler_matrizes(bits_t *b, uint8_t l[8][64], int qtd, uint8_t (*base)[64])
+{
+    for (int i = 0; i < 8; i++) {
+        int n = i < 6 ? 16 : 64;
+        bool veio = i < qtd && ler_bit(b);
+        if (veio && ler_lista_escala(b, l[i], n)) continue;
+        const uint8_t *fonte;
+        if (!veio && i != 0 && i != 3 && i < 6) fonte = l[i - 1];
+        else if (veio || !base) fonte = i < 3 ? escala4_intra : i < 6 ? escala4_inter : i == 6 ? escala8_intra : escala8_inter;
+        else fonte = base[i];
+        memcpy(l[i], fonte, (size_t)n);
+    }
+}
+
+/* A que classe uma posição do bloco 8x8 pertence para o normAdjust8x8
+ * (equação 8-317): depende só de linha e coluna serem múltiplas de 4, ímpares
+ * ou "2 mais múltiplo de 4", porque é isso que decide o tamanho das funções
+ * de base da transformada 8x8 que se cruzam ali. */
+static int classe8(int x, int y)
+{
+    int a = x & 3, b = y & 3;
+    if (a == 0 && b == 0) return 0;
+    if ((a & 1) && (b & 1)) return 1;
+    if (a == 2 && b == 2) return 2;
+    if ((a == 0 && (b & 1)) || ((a & 1) && b == 0)) return 3;
+    if ((a == 0 && b == 2) || (a == 2 && b == 0)) return 4;
+    return 5;
+}
+
+/* LevelScale (item 8.5.9, equações 8-313 e 8-315): o peso da matriz de
+ * escala vezes o normAdjust da posição, para cada QP % 6. Fica calculado uma
+ * vez por PPS, já na posição (linha, coluna) do bloco, para a desquantização
+ * de cada coeficiente ser uma multiplicação. */
+static void montar_escalas(h264_t *h, uint8_t l[8][64])
+{
+    for (int i = 0; i < 6; i++)
+        for (int m = 0; m < 6; m++)
+            for (int k = 0; k < 16; k++) {
+                int p = zigzag[k], x = p & 3, y = p >> 2;
+                int cl = (!(x & 1) && !(y & 1)) ? 0 : ((x & 1) && (y & 1)) ? 1 : 2;
+                h->ls4[i][m][p] = (uint16_t)(l[i][k] * dq_v[m][cl]);
+            }
+    for (int i = 0; i < 2; i++)
+        for (int m = 0; m < 6; m++)
+            for (int k = 0; k < 64; k++) {
+                int p = zigzag8[k];
+                h->ls8[i][m][p] = (uint16_t)(l[6 + i][k] * norma8[m][classe8(p & 7, p >> 3)]);
+            }
 }
 
 static void pular_hrd(bits_t *b)
@@ -278,13 +404,21 @@ static int ler_sps(h264_t *h, bits_t *b)
     ler_bits(b, 16);   /* restrições + nível */
     ue(b);
     h->perfil = perfil;
+    h->motivo = NULL;
+    bool matriz = false;
+    /* Os perfis do High para cima têm estes campos a mais no SPS (7.3.2.1.1). */
     if (perfil == 100 || perfil == 110 || perfil == 122 || perfil == 244 || perfil == 44 ||
         perfil == 83 || perfil == 86 || perfil == 118 || perfil == 128) {
         int croma = (int)ue(b);
-        if (croma != 1) return H264_SEM_SUPORTE;
-        ue(b); ue(b); ler_bit(b);
-        if (ler_bit(b)) return H264_SEM_SUPORTE;    /* matrizes de escala */
+        if (croma != 1) { h->motivo = "croma que nao e 4:2:0"; return H264_SEM_SUPORTE; }
+        int prof_y = (int)ue(b), prof_c = (int)ue(b);
+        if (prof_y || prof_c) { h->motivo = "mais de 8 bits por amostra"; return H264_SEM_SUPORTE; }
+        if (ler_bit(b)) { h->motivo = "modo sem perdas (transform bypass)"; return H264_SEM_SUPORTE; }
+        matriz = ler_bit(b);
+        if (matriz) ler_matrizes(b, h->sps_l, 8, NULL);
     }
+    if (!matriz) memset(h->sps_l, 16, sizeof h->sps_l);   /* Flat_4x4_16 e Flat_8x8_16 */
+    h->sps_matriz = matriz;
     h->log2_frame_num = (int)ue(b) + 4;
     h->poc_tipo = (int)ue(b);
     if (h->poc_tipo == 0) h->log2_poc_lsb = (int)ue(b) + 4;
@@ -299,7 +433,7 @@ static int ler_sps(h264_t *h, bits_t *b)
     if (h->max_ref < 1) h->max_ref = 1;
     ler_bit(b);
     int lm = (int)ue(b) + 1, am = (int)ue(b) + 1;
-    if (!ler_bit(b)) return H264_SEM_SUPORTE;      /* entrelaçado */
+    if (!ler_bit(b)) { h->motivo = "video entrelacado"; return H264_SEM_SUPORTE; }
     h->direto_8x8 = ler_bit(b);
     int c[4] = { 0, 0, 0, 0 };
     if (ler_bit(b)) for (int i = 0; i < 4; i++) c[i] = (int)ue(b) * 2;
@@ -321,7 +455,7 @@ static int ler_sps(h264_t *h, bits_t *b)
             if (r <= MAX_REF) h->reordenar = r;
         }
     }
-    if (lm > 256 || am > 256) return H264_SEM_SUPORTE;
+    if (lm > 256 || am > 256) { h->motivo = "imagem grande demais"; return H264_SEM_SUPORTE; }
     if (lm != h->larg_mb || am != h->alt_mb || !h->q[0].y) {
         liberar_quadros(h);
         h->larg_mb = lm;
@@ -340,6 +474,8 @@ static int ler_sps(h264_t *h, bits_t *b)
         }
     }
     memcpy(h->corte, c, sizeof c);
+    /* um SPS repetido no meio do vídeo não desfaz as matrizes que o PPS mandou */
+    montar_escalas(h, h->pps_matriz ? h->pps_l : h->sps_l);
     h->sps_ok = true;
     return 0;
 }
@@ -349,7 +485,7 @@ static int ler_pps(h264_t *h, bits_t *b)
     ue(b); ue(b);
     h->cabac = ler_bit(b);
     h->poc_inferior = ler_bit(b);
-    if (ue(b) != 0) return H264_SEM_SUPORTE;       /* grupos de fatias */
+    if (ue(b) != 0) { h->motivo = "grupos de fatias (FMO)"; return H264_SEM_SUPORTE; }
     h->ref_padrao[0] = (int)ue(b) + 1;
     h->ref_padrao[1] = (int)ue(b) + 1;
     h->ponderada = ler_bit(b);
@@ -360,7 +496,23 @@ static int ler_pps(h264_t *h, bits_t *b)
     h->ctrl_desbloq = ler_bit(b);
     ler_bit(b);          /* intra restrita: tratada como 0 */
     h->redundante = ler_bit(b);
-    if (mais_dados(b) && ler_bit(b)) return H264_SEM_SUPORTE;   /* transformada 8x8 (High) */
+    /* O que o High acrescenta ao PPS vem no fim, e só se sobrarem bits
+     * (7.3.2.2): se os MBs podem usar a transformada 8x8, matrizes de escala
+     * que trocam as do SPS, e um ajuste de QP só para o Cr (sem ele, o Cr usa
+     * o mesmo do Cb). */
+    h->t8_modo = 0;
+    h->pps_matriz = false;
+    h->croma_qp_off2 = h->croma_qp_off;
+    if (mais_dados(b)) {
+        h->t8_modo = ler_bit(b);
+        if (ler_bit(b)) {
+            ler_matrizes(b, h->pps_l, 6 + 2 * h->t8_modo, h->sps_matriz ? h->sps_l : NULL);
+            h->pps_matriz = true;
+            CONTA(5);
+        }
+        h->croma_qp_off2 = se(b);
+    }
+    montar_escalas(h, h->pps_matriz ? h->pps_l : h->sps_l);
     h->pps_ok = true;
     return 0;
 }
@@ -597,6 +749,39 @@ static void idct4_somar(uint8_t *d, int passo, int *c)
     }
 }
 
+/* Uma passada (linha ou coluna) da transformada inversa 8x8 do High, no
+ * próprio vetor: v[0], v[p], ..., v[7p]. São as equações 8-338 a 8-353 do
+ * item 8.5.13.2, com os nomes de lá (a0..a7 e b0..b7). As posições pares
+ * (0, 2, 4, 6) fazem a mesma conta da transformada 4x4; as ímpares somam os
+ * quatro termos restantes. Só há somas e deslocamentos: a norma escolheu uma
+ * transformada inteira justamente para todo decodificador dar o mesmo
+ * resultado, bit por bit. */
+static inline void idct8_passada(int *v, int p)
+{
+    int a0 = v[0] + v[4 * p], a4 = v[0] - v[4 * p];
+    int a2 = (v[2 * p] >> 1) - v[6 * p], a6 = v[2 * p] + (v[6 * p] >> 1);
+    int b0 = a0 + a6, b2 = a4 + a2, b4 = a4 - a2, b6 = a0 - a6;
+    int a1 = -v[3 * p] + v[5 * p] - v[7 * p] - (v[7 * p] >> 1);
+    int a3 = v[p] + v[7 * p] - v[3 * p] - (v[3 * p] >> 1);
+    int a5 = -v[p] + v[7 * p] + v[5 * p] + (v[5 * p] >> 1);
+    int a7 = v[3 * p] + v[5 * p] + v[p] + (v[p] >> 1);
+    int b1 = a1 + (a7 >> 2), b7 = a7 - (a1 >> 2);
+    int b3 = a3 + (a5 >> 2), b5 = (a3 >> 2) - a5;
+    v[0] = b0 + b7;     v[p] = b2 + b5;     v[2 * p] = b4 + b3; v[3 * p] = b6 + b1;
+    v[4 * p] = b6 - b1; v[5 * p] = b4 - b3; v[6 * p] = b2 - b5; v[7 * p] = b0 - b7;
+}
+
+/* Transformada inversa 8x8 somada à predição que já está em d (8.5.13.2 e
+ * 8.5.14): primeiro cada linha, depois cada coluna (a ordem importa por causa
+ * dos arredondamentos), e o resultado dividido por 64 com arredondamento. */
+static void idct8_somar(uint8_t *d, int passo, int *c)
+{
+    for (int i = 0; i < 8; i++) idct8_passada(c + i * 8, 1);
+    for (int i = 0; i < 8; i++) idct8_passada(c + i, 8);
+    for (int y = 0; y < 8; y++)
+        for (int x = 0; x < 8; x++) d[y * passo + x] = clip1(d[y * passo + x] + ((c[y * 8 + x] + 32) >> 6));
+}
+
 /* ---------------------------------------------------------- CAVLC */
 
 static int residuo(bits_t *b, int nC, int16_t *coef, int inicio, int max)
@@ -814,6 +999,118 @@ static void bordas_luma(h264_t *h, ctx_t *c, int bx, int by, int *t, int *l, int
     *lt = lta ? p[-h->passo - 1] : 128;
 }
 
+/* Predição intra 8x8 da luma (High, item 8.3.2.2) do bloco b8 (0 a 3, em
+ * ordem de leitura) do MB, escrita direto no quadro.
+ *
+ * Como na intra 4x4, o bloco é "adivinhado" a partir das amostras já
+ * decodificadas em volta: as 16 de cima (8 sobre o bloco e 8 à direita
+ * delas), as 8 da esquerda e a do canto. A diferença do 8x8 é que essas
+ * vizinhas passam antes por um filtro suave [1 2 1]/4 (8.3.2.2.1): num bloco
+ * maior, o ruído de uma amostra de referência se espalharia por 8 linhas.
+ * As nove direções são as mesmas da 4x4, com as fórmulas de 8.3.2.2.2 a
+ * 8.3.2.2.10; T(i) é a linha de cima filtrada, L(i) a coluna da esquerda, e
+ * T(-1) = L(-1) é o canto. */
+static void pred8x8(h264_t *h, ctx_t *c, int b8, int modo)
+{
+    int bx = b8 & 1, by = b8 >> 1, passo = h->passo;
+    uint8_t *d = h->atual->y + (c->mby * 16 + by * 8) * passo + c->mbx * 16 + bx * 8;
+    /* quem existe: dentro do MB, o que já foi decodificado; fora, o MB vizinho */
+    bool tem_c = by || c->b, tem_e = bx || c->a;
+    bool tem_q = (bx && by) || (!bx && by && c->a) || (bx && !by && c->b) || (!bx && !by && c->d);
+    /* as 8 de cima à direita: para o bloco 3 seriam de um MB que ainda não
+     * veio, e para o 2 são do bloco 1; na fileira de cima, do MB de cima (ou
+     * do de cima à direita). Quando faltam, repete-se a última que existe. */
+    bool tem_d = by ? !bx : (bx ? c->c != NULL : c->b != NULL);
+    int rc[16], re[8], rq = tem_q ? d[-passo - 1] : 128;
+    for (int i = 0; i < 8; i++) {
+        rc[i] = tem_c ? d[-passo + i] : 128;
+        re[i] = tem_e ? d[i * passo - 1] : 128;
+    }
+    for (int i = 8; i < 16; i++) rc[i] = tem_c && tem_d ? d[-passo + i] : rc[7];
+    /* o filtro das vizinhas; nas pontas, onde falta um dos lados, a amostra
+     * da ponta conta em dobro */
+    int cima[17], esq[9];
+#define T(i) cima[(i) + 1]
+#define L(i) esq[(i) + 1]
+    for (int i = 0; i < 16; i++) T(i) = rc[i];
+    for (int i = 0; i < 8; i++) L(i) = re[i];
+    T(-1) = rq;
+    if (tem_c) {
+        T(0) = tem_q ? (rq + 2 * rc[0] + rc[1] + 2) >> 2 : (3 * rc[0] + rc[1] + 2) >> 2;
+        for (int i = 1; i < 15; i++) T(i) = (rc[i - 1] + 2 * rc[i] + rc[i + 1] + 2) >> 2;
+        T(15) = (rc[14] + 3 * rc[15] + 2) >> 2;
+    }
+    if (tem_e) {
+        L(0) = tem_q ? (rq + 2 * re[0] + re[1] + 2) >> 2 : (3 * re[0] + re[1] + 2) >> 2;
+        for (int i = 1; i < 7; i++) L(i) = (re[i - 1] + 2 * re[i] + re[i + 1] + 2) >> 2;
+        L(7) = (re[6] + 3 * re[7] + 2) >> 2;
+    }
+    if (tem_q) {
+        if (tem_c && tem_e) T(-1) = (rc[0] + 2 * rq + re[0] + 2) >> 2;
+        else if (tem_c) T(-1) = (3 * rq + rc[0] + 2) >> 2;
+        else if (tem_e) T(-1) = (3 * rq + re[0] + 2) >> 2;
+    }
+    L(-1) = T(-1);
+    int media = 128;    /* modo 2 (DC): a média das vizinhas que existem */
+    if (modo == 2) {
+        int sc = 0, se_ = 0;
+        for (int i = 0; i < 8; i++) { sc += T(i); se_ += L(i); }
+        if (tem_c && tem_e) media = (sc + se_ + 8) >> 4;
+        else if (tem_e) media = (se_ + 4) >> 3;
+        else if (tem_c) media = (sc + 4) >> 3;
+    }
+    for (int y = 0; y < 8; y++)
+        for (int x = 0; x < 8; x++) {
+            int v;
+            switch (modo) {
+            case 0: v = T(x); break;                                   /* vertical */
+            case 1: v = L(y); break;                                   /* horizontal */
+            case 2: v = media; break;
+            case 3:                                                     /* diagonal para baixo e esquerda */
+                v = (x == 7 && y == 7) ? (T(14) + 3 * T(15) + 2) >> 2
+                                       : (T(x + y) + 2 * T(x + y + 1) + T(x + y + 2) + 2) >> 2;
+                break;
+            case 4:                                                     /* diagonal para baixo e direita */
+                if (x > y) v = (T(x - y - 2) + 2 * T(x - y - 1) + T(x - y) + 2) >> 2;
+                else if (x < y) v = (L(y - x - 2) + 2 * L(y - x - 1) + L(y - x) + 2) >> 2;
+                else v = (T(0) + 2 * T(-1) + L(0) + 2) >> 2;
+                break;
+            case 5: {                                                   /* vertical para a direita */
+                int z = 2 * x - y, i = x - (y >> 1);
+                if (z >= 0 && !(z & 1)) v = (T(i - 1) + T(i) + 1) >> 1;
+                else if (z >= 0) v = (T(i - 2) + 2 * T(i - 1) + T(i) + 2) >> 2;
+                else if (z == -1) v = (L(0) + 2 * T(-1) + T(0) + 2) >> 2;
+                else v = (L(y - 2 * x - 1) + 2 * L(y - 2 * x - 2) + L(y - 2 * x - 3) + 2) >> 2;
+                break;
+            }
+            case 6: {                                                   /* horizontal para baixo */
+                int z = 2 * y - x, i = y - (x >> 1);
+                if (z >= 0 && !(z & 1)) v = (L(i - 1) + L(i) + 1) >> 1;
+                else if (z >= 0) v = (L(i - 2) + 2 * L(i - 1) + L(i) + 2) >> 2;
+                else if (z == -1) v = (L(0) + 2 * T(-1) + T(0) + 2) >> 2;
+                else v = (T(x - 2 * y - 1) + 2 * T(x - 2 * y - 2) + T(x - 2 * y - 3) + 2) >> 2;
+                break;
+            }
+            case 7: {                                                   /* vertical para a esquerda */
+                int i = x + (y >> 1);
+                if (!(y & 1)) v = (T(i) + T(i + 1) + 1) >> 1;
+                else v = (T(i) + 2 * T(i + 1) + T(i + 2) + 2) >> 2;
+                break;
+            }
+            default: {                                                  /* 8: horizontal para cima */
+                int z = x + 2 * y, i = y + (x >> 1);
+                if (z > 13) v = L(7);
+                else if (z == 13) v = (L(6) + 3 * L(7) + 2) >> 2;
+                else if (!(z & 1)) v = (L(i) + L(i + 1) + 1) >> 1;
+                else v = (L(i) + 2 * L(i + 1) + L(i + 2) + 2) >> 2;
+            }
+            }
+            d[y * passo + x] = (uint8_t)v;
+        }
+#undef T
+#undef L
+}
+
 /* --------------------------------------------- predição de vetor de movimento */
 
 /* Cache 6x5 por lista: linha 0 = acima, coluna 0 = esquerda, 5 = direita. */
@@ -1023,10 +1320,19 @@ static void reconstruir_inter(h264_t *h, ctx_t *c, mvc_t *k)
     quadro_t *q = h->atual;
     int x0 = c->mbx * 16, y0 = c->mby * 16;
     uint8_t t[2][16 * 16], tc[2][2][8 * 16];
-    for (int b8 = 0; b8 < 4; b8++) {
+    /* O caso mais comum (MB 16x16, pulado ou direto com um vetor só): o MB
+     * inteiro tem a mesma referência e o mesmo vetor, e é previsto de uma
+     * vez em vez de em quatro blocos 8x8, cada um buscando a sua margem. */
+    bool tudo = true;
+    for (int l = 0; l < 2 && tudo; l++)
+        for (int j = 1; j < 5 && tudo; j++)
+            for (int i = 1; i < 5; i++)
+                if (k[l].ref[j][i] != k[l].ref[1][1] || k[l].mv[j][i][0] != k[l].mv[1][1][0] ||
+                    k[l].mv[j][i][1] != k[l].mv[1][1][1]) { tudo = false; break; }
+    for (int b8 = 0; b8 < (tudo ? 1 : 4); b8++) {
         int bx = (b8 & 1) * 2, by = (b8 >> 1) * 2;
         bool iguais = true;
-        for (int l = 0; l < 2; l++)
+        for (int l = 0; l < 2 && !tudo; l++)
             for (int j = 0; j < 2; j++)
                 for (int i = 0; i < 2; i++)
                     if (k[l].ref[by + 1 + j][bx + 1 + i] != k[l].ref[by + 1][bx + 1] ||
@@ -1035,7 +1341,7 @@ static void reconstruir_inter(h264_t *h, ctx_t *c, mvc_t *k)
         for (int j = 0; j < 2; j++)
             for (int i = 0; i < 2; i++) {
                 if (iguais && (i || j)) continue;
-                int xx = bx + i, yy = by + j, tam = iguais ? 8 : 4;
+                int xx = bx + i, yy = by + j, tam = tudo ? 16 : iguais ? 8 : 4;
                 int lx = x0 + xx * 4, ly = y0 + yy * 4, cx = lx / 2, cy = ly / 2, ct = tam / 2;
                 int rr[2] = { -1, -1 };
                 for (int l = 0; l < 2; l++) {
@@ -1085,20 +1391,36 @@ static void guardar_movimento(h264_t *h, mbinfo_t *m, mvc_t *k)
 static inline uint8_t *py_(h264_t *h, quadro_t *q, int mbx, int mby) { return q->y + mby * 16 * h->passo + mbx * 16; }
 
 typedef struct {
-    int lum[16][16];        /* por bloco raster, coeficientes na posição da matriz */
+    union {
+        int lum[16][16];    /* por bloco raster, coeficientes na posição da matriz */
+        int lum8[4][64];    /* com a transformada 8x8: por bloco 8x8, na posição y * 8 + x */
+    };
     int dc[16];             /* DC da luma (16x16), na ordem de varredura */
     int cdc[2][4];
     int cro[2][4][16];
 } coef_t;
 
-/* Predição intra + desquantização + IDCT. O MB inter já tem a predição no quadro. */
+/* Desfaz a quantização de um coeficiente (8.5.12.1 e 8.5.13.1): multiplica
+ * pelo LevelScale da posição e por 2^(QP / 6), e divide por 2^base, com
+ * arredondamento quando sobra divisão. A base é 4 nos blocos 4x4 e 6 nos 8x8
+ * e no DC da luma 16x16; ela existe porque o LevelScale já traz o peso da
+ * matriz de escala, que vale 16 quando "não muda nada". */
+static inline int desq(int c, int ls, int q6, int base)
+{
+    if (q6 >= base) return c * ls * (1 << (q6 - base));
+    return (c * ls + (1 << (base - 1 - q6))) >> (base - q6);
+}
+
+/* Predição intra + desquantização + IDCT. O MB inter já tem a predição no quadro.
+ * As matrizes de escala (h->ls4, h->ls8) dependem de o MB ser intra ou inter
+ * e, na croma, de ser Cb ou Cr. */
 static void aplicar_residuo(h264_t *h, ctx_t *c, mbinfo_t *m, bool intra, int modo16, int modo_croma, int cbp, coef_t *k)
 {
     quadro_t *q = h->atual;
     int passo = h->passo, pc = h->passo_c;
     int qp = h->qp, q6 = qp / 6, r6 = qp % 6;
-    int qpc = m->qpc;
     int (*lum)[16] = k->lum;
+    const uint16_t *el = h->ls4[intra ? 0 : 3][r6];
     if (modo16 >= 0) {
         int cm[16], tmp[16];
         for (int i = 0; i < 16; i++) cm[zigzag[i]] = k->dc[i];
@@ -1110,37 +1432,45 @@ static void aplicar_residuo(h264_t *h, ctx_t *c, mbinfo_t *m, bool intra, int mo
         for (int i = 0; i < 4; i++) {
             int a = tmp[i] + tmp[4 + i], bq = tmp[i] - tmp[4 + i], cc = tmp[8 + i] + tmp[12 + i], dd = tmp[8 + i] - tmp[12 + i];
             int f[4] = { a + cc, a - cc, bq - dd, bq + dd };
-            for (int kk = 0; kk < 4; kk++) {
-                int v = f[kk], ls = 16 * dq_v[r6][0];
-                v = qp >= 36 ? (v * ls) << (q6 - 6) : (v * ls + (1 << (5 - q6))) >> (6 - q6);
-                lum[kk * 4 + i][0] = v;
-            }
+            for (int kk = 0; kk < 4; kk++) lum[kk * 4 + i][0] = desq(f[kk], el[0], q6, 6);
         }
     }
     if (cbp & 0x30) {
-        int c6 = qpc / 6, cr6 = qpc % 6;
         for (int comp = 0; comp < 2; comp++) {
+            int qpc = m->qpc[comp], c6 = qpc / 6;
+            const uint16_t *ec = h->ls4[(intra ? 1 : 4) + comp][qpc % 6];
             int a = k->cdc[comp][0], bq = k->cdc[comp][1], cc = k->cdc[comp][2], dd = k->cdc[comp][3];
             int f[4] = { a + bq + cc + dd, a - bq + cc - dd, a + bq - cc - dd, a - bq - cc + dd };
-            for (int i = 0; i < 4; i++)
-                k->cro[comp][i][0] = (((f[i] * 16 * dq_v[cr6][0]) << c6) >> 5);
+            for (int i = 0; i < 4; i++) {
+                k->cro[comp][i][0] = (f[i] * ec[0] * (1 << c6)) >> 5;      /* DC da croma 4:2:0 (8.5.11.2) */
+                for (int j = 1; j < 16; j++)
+                    if (k->cro[comp][i][j]) k->cro[comp][i][j] = desq(k->cro[comp][i][j], ec[j], c6, 4);
+            }
         }
-        for (int comp = 0; comp < 2; comp++)
-            for (int i = 0; i < 4; i++)
-                for (int j = 1; j < 16; j++) {
-                    if (!k->cro[comp][i][j]) continue;
-                    int cl = ((j & 3) & 1) == 0 && ((j >> 2) & 1) == 0 ? 0 : (((j & 3) & 1) && ((j >> 2) & 1)) ? 1 : 2;
-                    k->cro[comp][i][j] = ((k->cro[comp][i][j] * dq_v[cr6][cl]) << c6);
-                }
     }
-    for (int blk = 0; blk < 16; blk++)
-        for (int j = modo16 >= 0 ? 1 : 0; j < 16 && m->nz[blk]; j++) {
-            if (!lum[blk][j]) continue;
-            int cl = ((j & 1) == 0 && ((j >> 2) & 1) == 0) ? 0 : ((j & 1) && ((j >> 2) & 1)) ? 1 : 2;
-            lum[blk][j] = ((lum[blk][j] * dq_v[r6][cl]) << q6);
+    if (m->t8) {
+        const uint16_t *e8 = h->ls8[intra ? 0 : 1][r6];
+        for (int b8 = 0; b8 < 4; b8++) {
+            if (!(cbp & (1 << b8))) continue;
+            int *l8 = k->lum8[b8];
+            for (int j = 0; j < 64; j++) if (l8[j]) l8[j] = desq(l8[j], e8[j], q6, 6);
         }
+    } else
+        for (int blk = 0; blk < 16; blk++)
+            for (int j = modo16 >= 0 ? 1 : 0; j < 16 && m->nz[blk]; j++)
+                if (lum[blk][j]) lum[blk][j] = desq(lum[blk][j], el[j], q6, 4);
     uint8_t *Y = py_(h, q, c->mbx, c->mby);
-    if (intra && modo16 < 0) {
+    CONTA(0);
+    if (m->t8) CONTA(intra ? 1 : 2);
+    if (m->t8) {
+        /* transformada 8x8: quatro blocos; no MB intra cada um é previsto e
+         * reconstruído antes do seguinte, que usa as amostras dele */
+        for (int b8 = 0; b8 < 4; b8++) {
+            int bx = (b8 & 1) * 2, by = (b8 >> 1) * 2;
+            if (intra) { pred8x8(h, c, b8, m->modo4[by * 4 + bx]); CONTA(7 + m->modo4[by * 4 + bx]); }
+            if (cbp & (1 << b8)) idct8_somar(Y + by * 4 * passo + bx * 4, passo, k->lum8[b8]);
+        }
+    } else if (intra && modo16 < 0) {
         for (int i = 0; i < 16; i++) {
             int bx = blk_x[i], by = blk_y[i];
             int t[8], l[4], lt;
@@ -1206,10 +1536,44 @@ static void iniciar_mb(h264_t *h, mbinfo_t *m)
 {
     memset(m->nz, 0, sizeof m->nz);
     m->fatia = h->fatia_atual;
-    m->intra = m->i4x4 = m->i16 = m->skip = m->direto = 0;
+    m->intra = m->i4x4 = m->i16 = m->skip = m->direto = m->t8 = 0;
     m->qpd = 0; m->cbp = 0; m->modo_croma = 0; m->dc = 0;
     for (int i = 0; i < 16; i++) { m->modo4[i] = 2; m->dir[i] = 0; }
     memset(m->mvd, 0, sizeof m->mvd);
+}
+
+/* QP da croma de um MB cuja luma tem QP "qp" (8.5.8 e tabela 8-15): o Cb
+ * usa o ajuste chroma_qp_index_offset do PPS e o Cr, no High, pode ter outro
+ * (second_chroma_qp_index_offset). */
+static void qp_da_croma(h264_t *h, mbinfo_t *m, int qp)
+{
+    m->qpc[0] = (int8_t)qp_croma[clip(qp + h->croma_qp_off, 0, 51)];
+    m->qpc[1] = (int8_t)qp_croma[clip(qp + h->croma_qp_off2, 0, 51)];
+}
+
+/* Modo intra mais provável do bloco 4x4 em (bx, by) (8.3.1.1 e 8.3.2.1): o
+ * menor entre o do vizinho da esquerda e o do de cima; se falta um dos dois,
+ * DC (2); vizinho que não é intra 4x4 nem 8x8 conta como DC. Serve também
+ * para os blocos 8x8: o modo de um bloco 8x8 fica guardado nos seus quatro
+ * 4x4, e a norma manda olhar justamente o 4x4 vizinho da primeira linha (à
+ * esquerda) ou da primeira coluna (acima) do bloco 8x8. */
+static int prever_modo(ctx_t *c, mbinfo_t *m, int bx, int by)
+{
+    int ma, mb;
+    bool oka, okb;
+    if (bx > 0) { ma = m->modo4[by * 4 + bx - 1]; oka = true; }
+    else if (c->a) { ma = c->a->i4x4 ? c->a->modo4[by * 4 + 3] : 2; oka = true; }
+    else { ma = 2; oka = false; }
+    if (by > 0) { mb = m->modo4[(by - 1) * 4 + bx]; okb = true; }
+    else if (c->b) { mb = c->b->i4x4 ? c->b->modo4[12 + bx] : 2; okb = true; }
+    else { mb = 2; okb = false; }
+    return (oka && okb) ? (ma < mb ? ma : mb) : 2;
+}
+
+static void gravar_modo(mbinfo_t *m, int bx, int by, int modo)
+{
+    m->modo4[by * 4 + bx] = (int8_t)modo;
+    if (m->t8) m->modo4[by * 4 + bx + 1] = m->modo4[by * 4 + bx + 4] = m->modo4[by * 4 + bx + 5] = (int8_t)modo;
 }
 
 static void sem_movimento(mbinfo_t *m)
@@ -1231,7 +1595,7 @@ static void pcm(h264_t *h, ctx_t *c, mbinfo_t *m, bits_t *b)
     }
     m->intra = 2;
     memset(m->nz, 16, sizeof m->nz);
-    m->qp = 0; m->qpc = (int8_t)qp_croma[clip(h->croma_qp_off, 0, 51)];
+    m->qp = 0; qp_da_croma(h, m, 0);
     m->cbp = 0x2F; m->dc = 7;
     sem_movimento(m);
 }
@@ -1248,26 +1612,24 @@ static int decodificar_mb(h264_t *h, bits_t *b, ctx_t *c, int tipo_mb, bool skip
     if (h->tipo == 0 && !skip && tipo_mb >= 5) tipo_mb -= 5;
     bool intra = !skip && !inter;
     int cbp = 0, modo16 = -1, modo_croma = 0;
+    /* Um MB inter só pode usar a transformada 8x8 se nenhuma partição dele
+     * for menor que 8x8 (7.3.5): senão um bloco 8x8 de resíduo cobriria
+     * pedaços previstos com vetores diferentes. */
+    bool pode8 = true;
     if (intra && tipo_mb == 25) { pcm(h, c, m, b); return 0; }
     if (intra) {
         m->intra = 1;
         if (tipo_mb == 0) {
             m->i4x4 = 1;
-            for (int i = 0; i < 16; i++) {
+            /* I_NxN: com a transformada 8x8, a predição também é 8x8 (7.3.5) */
+            if (h->t8_modo) m->t8 = (int8_t)ler_bit(b);
+            for (int i = 0; i < 16; i += m->t8 ? 4 : 1) {    /* 16 modos 4x4 ou 4 modos 8x8 */
                 int bx = blk_x[i], by = blk_y[i];
-                int ma, mb;
-                bool oka, okb;
-                if (bx > 0) { ma = m->modo4[by * 4 + bx - 1]; oka = true; }
-                else if (c->a) { ma = c->a->i4x4 ? c->a->modo4[by * 4 + 3] : 2; oka = true; }
-                else { ma = 2; oka = false; }
-                if (by > 0) { mb = m->modo4[(by - 1) * 4 + bx]; okb = true; }
-                else if (c->b) { mb = c->b->i4x4 ? c->b->modo4[12 + bx] : 2; okb = true; }
-                else { mb = 2; okb = false; }
-                int pred = (oka && okb) ? (ma < mb ? ma : mb) : 2;
+                int pred = prever_modo(c, m, bx, by);
                 int modo;
                 if (ler_bit(b)) modo = pred;
                 else { int r = (int)ler_bits(b, 3); modo = r < pred ? r : r + 1; }
-                m->modo4[by * 4 + bx] = (int8_t)modo;
+                gravar_modo(m, bx, by, modo);
             }
         } else {
             m->i16 = 1;
@@ -1304,7 +1666,7 @@ static int decodificar_mb(h264_t *h, bits_t *b, ctx_t *c, int tipo_mb, bool skip
             }
         } else {
             int sub[4], ri[4] = { 0, 0, 0, 0 };
-            for (int i = 0; i < 4; i++) sub[i] = (int)ue(b) & 3;
+            for (int i = 0; i < 4; i++) { sub[i] = (int)ue(b) & 3; if (sub[i]) pode8 = false; }
             if (nref > 1 && tipo_mb != 4)
                 for (int i = 0; i < 4; i++) ri[i] = nref == 2 ? !ler_bit(b) : (int)ue(b);
             for (int i = 0; i < 4; i++) {
@@ -1329,6 +1691,7 @@ static int decodificar_mb(h264_t *h, bits_t *b, ctx_t *c, int tipo_mb, bool skip
         uint32_t cod = ue(b);
         if (cod > 47) return -1;
         cbp = intra ? cbp_intra[cod] : cbp_inter[cod];
+        if (!intra && (cbp & 15) && h->t8_modo && pode8) m->t8 = (int8_t)ler_bit(b);
     }
     if (cbp || modo16 >= 0) {
         int d = se(b);
@@ -1336,7 +1699,7 @@ static int decodificar_mb(h264_t *h, bits_t *b, ctx_t *c, int tipo_mb, bool skip
         h->qp = (h->qp + d + 52) % 52;
     }
     m->qp = (int8_t)h->qp;
-    m->qpc = (int8_t)qp_croma[clip(h->qp + h->croma_qp_off, 0, 51)];
+    qp_da_croma(h, m, h->qp);
     m->cbp = (int8_t)cbp; m->modo_croma = (int8_t)modo_croma;
     if (skip) return 0;
     coef_t kf;
@@ -1365,7 +1728,13 @@ static int decodificar_mb(h264_t *h, bits_t *b, ctx_t *c, int tipo_mb, bool skip
             int n = residuo(b, nc_luma(c, bx, by), t, 0, 16);
             if (n < 0) return -1;
             m->nz[by * 4 + bx] = (uint8_t)n;
-            for (int j = 0; j < 16; j++) kf.lum[by * 4 + bx][zigzag[j]] = t[j];
+            /* No CAVLC um bloco 8x8 vem como quatro blocos de 16 coeficientes
+             * entrelaçados (7.3.5.3.2): o bloco i4 leva as posições 4*j + i4
+             * da varredura 8x8. Assim as tabelas do CAVLC, feitas para 16
+             * coeficientes, servem sem mudança, e cada 4x4 guarda a sua
+             * contagem para o nC dos vizinhos. */
+            if (m->t8) for (int j = 0; j < 16; j++) kf.lum8[i >> 2][zigzag8[4 * j + (i & 3)]] = t[j];
+            else for (int j = 0; j < 16; j++) kf.lum[by * 4 + bx][zigzag[j]] = t[j];
         }
     }
     if (cbp & 0x30) {
@@ -1534,26 +1903,40 @@ static const uint8_t cbf_off[5] = { 0, 4, 8, 12, 16 };
 static const uint8_t sig_off[5] = { 0, 15, 29, 44, 47 };
 static const uint8_t lev_off[5] = { 0, 10, 20, 30, 39 };
 
-/* Bloco residual; coef na ordem de varredura. Devolve quantos não nulos, ou 0 se coded_block_flag = 0. */
+/* Bloco residual; coef na ordem de varredura. Devolve quantos não nulos, ou 0 se coded_block_flag = 0.
+ *
+ * A categoria 5 é o bloco 8x8 de luma do High (ctxBlockCat 5, 9.3.3.1.3):
+ * em 4:2:0 ele não tem coded_block_flag (o bit do coded_block_pattern já diz
+ * que há coeficientes); os contextos dele ficam em outra faixa (tabela 9-34:
+ * 402 para "é significativo", 417 para "é o último", 426 para os valores); e
+ * como 63 posições dividem 15 e 9 contextos, a tabela 9-43 (cabac_sig8 e
+ * cabac_ult8) diz qual contexto cada posição usa. Os valores seguem a mesma
+ * regra das outras categorias. */
 static int cab_residuo(cabac_t *k, int cat, int inc_cbf, int *coef, int max)
 {
-    if (!cab(k, 85 + cbf_off[cat] + inc_cbf)) return 0;
-    int sig[16], ns = 0, i;
+    int b_sig, b_ult, b_niv;
+    if (cat == 5) { b_sig = 402; b_ult = 417; b_niv = 426; }
+    else {
+        if (!cab(k, 85 + cbf_off[cat] + inc_cbf)) return 0;
+        b_sig = 105 + sig_off[cat]; b_ult = 166 + sig_off[cat]; b_niv = 227 + lev_off[cat];
+    }
+    uint8_t sig[64];
+    int ns = 0, i;
     for (i = 0; i < max - 1; i++) {
-        int ci = cat == 3 ? (i < 2 ? i : 2) : i;
-        if (cab(k, 105 + sig_off[cat] + ci)) {
-            sig[ns++] = i;
-            if (cab(k, 166 + sig_off[cat] + ci)) break;
+        int cs = cat == 5 ? cabac_sig8[i] : cat == 3 ? (i < 2 ? i : 2) : i;
+        if (cab(k, b_sig + cs)) {
+            sig[ns++] = (uint8_t)i;
+            if (cab(k, b_ult + (cat == 5 ? cabac_ult8[i] : cs))) break;
         }
     }
-    if (i == max - 1) sig[ns++] = max - 1;
+    if (i == max - 1) sig[ns++] = (uint8_t)(max - 1);
     int gt1 = 0, eq1 = 0;
     for (int j = ns - 1; j >= 0; j--) {
-        int ctx = 227 + lev_off[cat] + (gt1 ? 0 : (1 + eq1 < 4 ? 1 + eq1 : 4));
+        int ctx = b_niv + (gt1 ? 0 : (1 + eq1 < 4 ? 1 + eq1 : 4));
         int v;
         if (!cab(k, ctx)) { v = 1; eq1++; }
         else {
-            int c2 = 227 + lev_off[cat] + 5 + (gt1 < 4 - (cat == 3) ? gt1 : 4 - (cat == 3));
+            int c2 = b_niv + 5 + (gt1 < 4 - (cat == 3) ? gt1 : 4 - (cat == 3));
             v = 2;
             while (v < 15 && cab(k, c2)) v++;
             if (v >= 15) {
@@ -1669,6 +2052,10 @@ static int decodificar_mb_cabac(h264_t *h, cabac_t *k, ctx_t *c, bits_t *b)
         }
     }
     int cbp = 0, modo16 = -1, modo_croma = 0;
+    /* Um MB inter só pode usar a transformada 8x8 se nenhuma partição dele
+     * for menor que 8x8 (7.3.5): senão um bloco 8x8 de resíduo cobriria
+     * pedaços previstos com vetores diferentes. */
+    bool pode8 = true;
     if (intra && getenv_dbg_mb == -3 && h->poc == dbg_poc) DBG("%sI", c->mbx ? "" : "\n");
     if (intra && tipo == 25) {
         /* I_PCM: os bytes começam alinhados depois do decodificador aritmético */
@@ -1681,21 +2068,18 @@ static int decodificar_mb_cabac(h264_t *h, cabac_t *k, ctx_t *c, bits_t *b)
         m->intra = 1;
         if (tipo == 0) {
             m->i4x4 = 1;
-            for (int i = 0; i < 16; i++) {
+            /* transform_size_8x8_flag (7.3.5): no I_NxN vem logo depois do
+             * tipo, porque decide se os modos a seguir são 16 (4x4) ou 4
+             * (8x8). O contexto (9.3.3.1.1.10) conta quantos dos vizinhos da
+             * esquerda e de cima usaram a transformada 8x8. */
+            if (h->t8_modo) m->t8 = (int8_t)cab(k, 399 + (c->a && c->a->t8) + (c->b && c->b->t8));
+            for (int i = 0; i < 16; i += m->t8 ? 4 : 1) {    /* 16 modos 4x4 ou 4 modos 8x8 */
                 int bx = blk_x[i], by = blk_y[i];
-                int ma, mb;
-                bool oka, okb;
-                if (bx > 0) { ma = m->modo4[by * 4 + bx - 1]; oka = true; }
-                else if (c->a) { ma = c->a->i4x4 ? c->a->modo4[by * 4 + 3] : 2; oka = true; }
-                else { ma = 2; oka = false; }
-                if (by > 0) { mb = m->modo4[(by - 1) * 4 + bx]; okb = true; }
-                else if (c->b) { mb = c->b->i4x4 ? c->b->modo4[12 + bx] : 2; okb = true; }
-                else { mb = 2; okb = false; }
-                int pred = (oka && okb) ? (ma < mb ? ma : mb) : 2;
+                int pred = prever_modo(c, m, bx, by);
                 int modo;
                 if (cab(k, 68)) modo = pred;
                 else { int r = cab(k, 69); r |= cab(k, 69) << 1; r |= cab(k, 69) << 2; modo = r < pred ? r : r + 1; }
-                m->modo4[by * 4 + bx] = (int8_t)modo;
+                gravar_modo(m, bx, by, modo);
             }
         } else {
             m->i16 = 1;
@@ -1747,6 +2131,7 @@ static int decodificar_mb_cabac(h264_t *h, cabac_t *k, ctx_t *c, bits_t *b)
                     else sub[i] = cab(k, 23) ? 2 : 3;
                 }
                 for (int i = 0; i < 4; i++) {
+                    if (sub[i]) pode8 = false;      /* partição 8x4, 4x8 ou 4x4 */
                     if (nref > 1 && tipo != 4) ri[i] = cab_ref(k, &kk[0], (i & 1) * 2, (i >> 1) * 2);
                     mvc_escrever(&kk[0], (i & 1) * 2, (i >> 1) * 2, 2, 2, ri[i], 0, 0);
                 }
@@ -1767,6 +2152,9 @@ static int decodificar_mb_cabac(h264_t *h, cabac_t *k, ctx_t *c, bits_t *b)
             /* fatia B */
             if (tipo == 0) {
                 m->direto = 1;
+                /* na predição direta os vetores podem variar a cada 4x4, a não
+                 * ser que o SPS garanta que são um por 8x8 (direct_8x8_inference) */
+                pode8 = h->direto_8x8 != 0;
                 prever_direto(h, c, kk, 0xFFFF);
                 for (int y = 1; y < 5; y++) for (int x = 1; x < 5; x++) kk[0].dir[y][x] = 1;
             } else if (tipo < 22) {
@@ -1813,6 +2201,8 @@ static int decodificar_mb_cabac(h264_t *h, cabac_t *k, ctx_t *c, bits_t *b)
                 /* diretos primeiro (usam só os vizinhos de fora, como no 16x16) */
                 unsigned dirs = 0;
                 for (int i = 0; i < 4; i++) if (!sub[i]) dirs |= 0x33u << ((i & 1) * 2 + (i >> 1) * 8);
+                for (int i = 0; i < 4; i++)
+                    if (sub[i] ? b_sub[sub[i]][1] != 0 : !h->direto_8x8) pode8 = false;
                 mvc_t salvo[2]; salvo[0] = kk[0]; salvo[1] = kk[1];
                 if (dirs) {
                     prever_direto(h, c, kk, dirs);
@@ -1856,7 +2246,7 @@ static int decodificar_mb_cabac(h264_t *h, cabac_t *k, ctx_t *c, bits_t *b)
     }
     if (skip) {
         m->qp = (int8_t)h->qp;
-        m->qpc = (int8_t)qp_croma[clip(h->qp + h->croma_qp_off, 0, 51)];
+        qp_da_croma(h, m, h->qp);
         qpd_ant = 0;
         return 0;
     }
@@ -1872,6 +2262,10 @@ static int decodificar_mb_cabac(h264_t *h, cabac_t *k, ctx_t *c, bits_t *b)
         int cr = 0;
         if (cab(k, 77 + (cca > 0) + 2 * (ccb > 0))) cr = 1 + cab(k, 77 + 4 + (cca == 2) + 2 * (ccb == 2));
         cbp = l | cr << 4;
+        /* nos MBs inter o transform_size_8x8_flag vem depois do
+         * coded_block_pattern, e só se houver resíduo de luma (7.3.5) */
+        if (!intra && (cbp & 15) && h->t8_modo && pode8)
+            m->t8 = (int8_t)cab(k, 399 + (c->a && c->a->t8) + (c->b && c->b->t8));
     }
     m->cbp = (int8_t)cbp; m->modo_croma = (int8_t)modo_croma;
     if (cbp || modo16 >= 0) {
@@ -1887,7 +2281,7 @@ static int decodificar_mb_cabac(h264_t *h, cabac_t *k, ctx_t *c, bits_t *b)
         m->qpd = (int8_t)(d != 0);
     } else qpd_ant = 0;
     m->qp = (int8_t)h->qp;
-    m->qpc = (int8_t)qp_croma[clip(h->qp + h->croma_qp_off, 0, 51)];
+    qp_da_croma(h, m, h->qp);
     coef_t kf;
     memset(&kf, 0, sizeof kf);
     int t[16];
@@ -1904,6 +2298,20 @@ static int decodificar_mb_cabac(h264_t *h, cabac_t *k, ctx_t *c, bits_t *b)
                 m->nz[by * 4 + bx] = (uint8_t)cab_residuo(k, 1, inc2, t, 15);
                 for (int j = 0; j < 15; j++) kf.lum[by * 4 + bx][zigzag[j + 1]] = t[j];
             }
+    } else if (m->t8) {
+        /* quatro blocos 8x8 de 64 coeficientes. Os quatro 4x4 de cada um
+         * ficam marcados com a contagem dele: é o que os vizinhos (o
+         * coded_block_flag deles, 9.3.3.1.1.9) e o filtro de desbloqueio
+         * devem enxergar. */
+        int t8[64];
+        for (int b8 = 0; b8 < 4; b8++) {
+            if (!(cbp & (1 << b8))) continue;
+            memset(t8, 0, sizeof t8);
+            int n = cab_residuo(k, 5, 0, t8, 64);
+            for (int j = 0; j < 64; j++) kf.lum8[b8][zigzag8[j]] = t8[j];
+            int b0 = (b8 >> 1) * 8 + (b8 & 1) * 2;
+            m->nz[b0] = m->nz[b0 + 1] = m->nz[b0 + 4] = m->nz[b0 + 5] = (uint8_t)n;
+        }
     } else {
         for (int i = 0; i < 16; i++) {
             if (!(cbp & (1 << (i >> 2)))) continue;
@@ -1937,10 +2345,20 @@ static int decodificar_mb_cabac(h264_t *h, cabac_t *k, ctx_t *c, bits_t *b)
 
 static int mvdif(const int16_t *a, const int16_t *b) { return absi(a[0] - b[0]) >= 4 || absi(a[1] - b[1]) >= 4; }
 
+/* O bloco de transformada que contém o 4x4 "b" tem coeficientes? Com a
+ * transformada 8x8 a pergunta vale para o bloco 8x8 inteiro (8.7.2.1): no
+ * CAVLC os coeficientes dele estão repartidos pelas contagens dos quatro 4x4. */
+static inline bool tem_coef(const mbinfo_t *m, int b)
+{
+    if (!m->t8) return m->nz[b] != 0;
+    int b0 = b & 10;    /* o 4x4 de cima à esquerda do 8x8: x e y sem o bit de baixo */
+    return m->nz[b0] || m->nz[b0 + 1] || m->nz[b0 + 4] || m->nz[b0 + 5];
+}
+
 static int calc_bs(mbinfo_t *p, int bp, mbinfo_t *q, int bq, bool borda_mb)
 {
     if (p->intra || q->intra) return borda_mb ? 4 : 3;
-    if (p->nz[bp] || q->nz[bq]) return 2;
+    if (tem_coef(p, bp) || tem_coef(q, bq)) return 2;
     int b8p = (bp >> 3) * 2 + ((bp & 3) >> 1), b8q = (bq >> 3) * 2 + ((bq & 3) >> 1);
     int p0 = p->ref[0][b8p], p1 = p->ref[1][b8p], q0 = q->ref[0][b8q], q1 = q->ref[1][b8q];
     int np = (p0 >= 0) + (p1 >= 0), nq = (q0 >= 0) + (q1 >= 0);
@@ -1973,6 +2391,9 @@ static void desbloquear(h264_t *h, const desbloq_t *dbf)
             for (int dir = 0; dir < 2; dir++)
                 for (int e = 0; e < 4; e++) {
                     mbinfo_t *p = m;
+                    /* com a transformada 8x8 as bordas 1 e 3 caem no meio de
+                     * um bloco: ali não há degrau de transformada para alisar (8.7) */
+                    if (m->t8 && (e & 1)) continue;
                     if (e == 0) {
                         if (dir == 0 && mx == 0) continue;
                         if (dir == 1 && my == 0) continue;
@@ -1994,8 +2415,8 @@ static void desbloquear(h264_t *h, const desbloq_t *dbf)
                     if (dir == 0) filtrar_borda(Y + e * 4, 1, h->passo, 16, bs, qpl, f->alfa, f->beta, false);
                     else filtrar_borda(Y + e * 4 * h->passo, h->passo, 1, 16, bs, qpl, f->alfa, f->beta, false);
                     if (e & 1) continue;
-                    int qpc = (p->qpc + m->qpc + 1) >> 1;
                     for (int comp = 0; comp < 2; comp++) {
+                        int qpc = (p->qpc[comp] + m->qpc[comp] + 1) >> 1;
                         uint8_t *C = (comp ? qd->v : qd->u) + my * 8 * h->passo_c + mx * 8;
                         if (dir == 0) filtrar_borda(C + e * 2, 1, h->passo_c, 8, bs, qpc, f->alfa, f->beta, true);
                         else filtrar_borda(C + e * 2 * h->passo_c, h->passo_c, 1, 8, bs, qpc, f->alfa, f->beta, true);
@@ -2171,6 +2592,8 @@ static int ler_fatia(h264_t *h, bits_t *b, int tipo_nal, int nal_ref)
     }
     /* dados da fatia */
     int total = h->larg_mb * h->alt_mb, mb = primeiro;
+    CONTA(h->cabac ? 3 : 4);
+    if (tipo == 1) CONTA(6);
     if (h->cabac) {
         if (tipo == 1 && !h->cabac) return H264_SEM_SUPORTE;
         b->pos = (b->pos + 7) & ~7u;
@@ -2187,6 +2610,8 @@ static int ler_fatia(h264_t *h, bits_t *b, int tipo_nal, int nal_ref)
             if (cab_fim(&k)) break;
             if (b->pos > b->fim + 16) return H264_ERRO;
         }
+        /* o decodificador aritmético anda até 9 bits à frente do que já usou */
+        if ((int)b->fim - (int)b->pos < -1 || (int)b->fim - (int)b->pos > 7) CONTA(16);
         return 0;
     }
     if (tipo == 1) return H264_SEM_SUPORTE;   /* B com CAVLC: não implementado */
@@ -2258,6 +2683,8 @@ bool h264_imagem(h264_t *h, h264_imagem_t *im)
 }
 
 void h264_esvaziar(h264_t *h) { fechar_quadro(h); h->esvaziar = true; }
+
+const char *h264_motivo(h264_t *h) { return h ? h->motivo : NULL; }
 
 /* ---------------------------------------------------------- NAL / API */
 

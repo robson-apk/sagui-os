@@ -114,6 +114,9 @@ deixe misturado como se fosse original.
   pessoa afirma que tem direito de enviar aquele código sob a GPL 3.
 - Se a IA ajudou, diga na descrição (e, se quiser, uma linha
   `Co-Authored-By:` da ferramenta).
+- **Quem responde pelo pull request é a pessoa que o envia e assina os
+  commits.** Não escreva na descrição que a responsabilidade é do mantenedor
+  (Eli) ou da IA: o `Signed-off-by` é justamente a declaração de quem envia.
 - Preencha o modelo de pull request (`.github/pull_request_template.md`).
 
 ## Coisas que não devem ser feitas

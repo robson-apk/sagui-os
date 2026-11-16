@@ -119,6 +119,14 @@ def main():
         verificar(True, "clicar no botão da barra de tarefas traz a janela")
         config(m, "aparencia.barra", "doca")
         config(m, "aparencia.tema", "escuro")
+        # O Sagui Code no menu Iniciar (grade 5 x 4): o item 16 abre a janela;
+        # o 17, "Sagui Code (terminal)", abre um Terminal já com ele.
+        antes = len(m.serial())
+        m.clique(40, 12)
+        time.sleep(0.8)
+        m.clique(44 + 2 * 108 + 54, 134 + 3 * 92 + 30)
+        esperar(m, "executar /bin/saguicode ->", 15, antes)
+        verificar(True, "o menu do sagui abre o Sagui Code num Terminal")
     return 0
 
 

@@ -19,12 +19,13 @@ static jan_t *j;
 static int aba;
 static char recado[96];
 
-enum { ABA_RELOGIO, ABA_APARENCIA, ABA_SOM, ABA_REDE, ABA_PROGRAMAS, ABA_SOBRE, ABA_IA, QTD_ABAS };
-static const char *const nomes_abas[QTD_ABAS] = { "Relógio", "Aparência", "Som", "Rede", "Programas", "Sobre o computador", "IA" };
+/* Abas novas entram no fim, para não mudar a posição das que já existem. */
+enum { ABA_RELOGIO, ABA_APARENCIA, ABA_SOM, ABA_REDE, ABA_PROGRAMAS, ABA_SOBRE, ABA_IA, ABA_TECLADO, QTD_ABAS };
+static const char *const nomes_abas[QTD_ABAS] = { "Relógio", "Aparência", "Som", "Rede", "Programas", "Sobre o computador", "IA", "Teclado" };
 /* Nome curto na lateral (o nome inteiro fica no título da aba e no log). */
-static const char *const rotulos_abas[QTD_ABAS] = { "Relógio", "Aparência", "Som", "Rede", "Programas", "Computador", "IA" };
+static const char *const rotulos_abas[QTD_ABAS] = { "Relógio", "Aparência", "Som", "Rede", "Programas", "Computador", "IA", "Teclado" };
 static const uint32_t *const icones_abas[QTD_ABAS] = { icone_relogio, icone_aparencia, icone_som, icone_rede,
-                                                       icone_programas, icone_info, icone_ia };
+                                                       icone_programas, icone_info, icone_ia, icone_teclado };
 /* Cada aba ocupa uma linha da lateral (H88: desenhada à mão, com ícone). */
 #define ABA_X 8
 #define ABA_Y(i) (16 + (i) * 40)
@@ -748,6 +749,46 @@ static void ia_tratar(const evento_t *e)
     }
 }
 
+/* ------------------------------------------------------------ Teclado (H90) */
+
+/* O layout é a configuração "teclado.layout"; o driver do teclado percebe a
+ * mudança sozinho na próxima tecla (ver kernel/dispositivos/teclado.c). */
+static botao_t b_abnt2, b_es;
+
+static bool teclado_es(void)
+{
+    char v[16];
+    return config_ler("teclado.layout", v, sizeof v) >= 0 && compara_texto(v, "es") == 0;
+}
+
+static void teclado_desenhar(void)
+{
+    titulo("Teclado");
+    bool es = teclado_es();
+    g_texto(j, X0, 56, "Layout do teclado:", COR_TEXTO);
+    b_abnt2 = (botao_t){ X0, 80, 300, 28, "Português do Brasil (ABNT2)", !es };
+    b_es = (botao_t){ X0, 116, 300, 28, "Espanhol (ES)", es };
+    botao_desenhar(j, &b_abnt2);
+    botao_desenhar(j, &b_es);
+    g_texto(j, X0, 166, es ? "ñ à direita do L; ´ ¨ ` ^ são teclas mortas;" : "ç à direita do L; ´ ` ~ ^ ¨ são teclas mortas;", COR_TEXTO_FRACO);
+    g_texto(j, X0, 186, es ? "AltGr+2 = @, AltGr+4 = ~ (morta)." : "AltGr+Q = /, AltGr+W = ?.", COR_TEXTO_FRACO);
+    g_texto(j, X0, 216, "No Terminal: teclado [es | abnt2]", COR_TEXTO_FRACO);
+}
+
+static void teclado_tratar(const evento_t *e)
+{
+    bool es;
+    if (botao_tratar(j, &b_abnt2, e)) es = false;
+    else if (botao_tratar(j, &b_es, e)) es = true;
+    else return;
+    int r = config_gravar("teclado.layout", es ? "es" : "abnt2");
+    registrar("configuracoes: teclado %s", es ? "es" : "abnt2");
+    g_retangulo(j, LATERAL + 1, 0, L - LATERAL - 1, A - 40, COR_FUNDO);
+    teclado_desenhar();
+    jan_mostrar(j);
+    mostrar_mensagem(es ? "Teclado espanhol." : "Teclado ABNT2.", r);
+}
+
 /* ------------------------------------------------------------ janela */
 
 static void desenhar_tudo(void)
@@ -776,6 +817,7 @@ static void desenhar_tudo(void)
     else if (aba == ABA_SOM) som_desenhar();
     else if (aba == ABA_REDE) rede_desenhar();
     else if (aba == ABA_IA) ia_desenhar();
+    else if (aba == ABA_TECLADO) teclado_desenhar();
     else sobre_desenhar();
     char p[8];
     config_ler("sistema.persistente", p, sizeof p);
@@ -800,6 +842,7 @@ int principal(int argc, char **argv)
         if (compara_texto(argv[1], "som") == 0) aba = ABA_SOM;
         if (compara_texto(argv[1], "rede") == 0) aba = ABA_REDE;
         if (compara_texto(argv[1], "ia") == 0) aba = ABA_IA;
+        if (compara_texto(argv[1], "teclado") == 0) aba = ABA_TECLADO;
     }
     desenhar_tudo();
     registrar("configuracoes: aberto na aba %s", nomes_abas[aba]);
@@ -824,6 +867,7 @@ int principal(int argc, char **argv)
             else if (aba == ABA_SOM) som_tratar(&e);
             else if (aba == ABA_REDE) rede_tratar(&e);
             else if (aba == ABA_IA) ia_tratar(&e);
+            else if (aba == ABA_TECLADO) teclado_tratar(&e);
             continue;
         }
         if (aba == ABA_RELOGIO && tempo_ms() - ultimo >= 1000) { ultimo = tempo_ms(); relogio_agora(); }

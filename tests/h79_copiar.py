@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""H79 (pedidos do Eli no G470) - copiar e colar entre programas.
+"""H79 (teste no G470) - copiar e colar entre programas.
 
 Critérios:
   - no Terminal, arrastar o mouse sobre um texto copia para a área de cópia

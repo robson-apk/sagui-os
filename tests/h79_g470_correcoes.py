@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""H79 - correções pedidas pelo Eli depois do teste no G470 (13/11/2026).
+"""H79 - correções depois do teste no G470 (13/11/2026).
 
 Critérios:
   - `registro` mostra o diário do kernel, com filtro (`registro VIDEO`), e a

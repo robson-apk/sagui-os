@@ -353,6 +353,15 @@ def ui_info(t):
     t.ret(28, 27, 36, 48, 2.5, 0xFFFFFF)
 
 
+def ui_teclado(t):
+    t.ret(4, 16, 60, 50, 7, vertical(0x8A96A6, 0x4E5A6A, 16, 50))
+    for linha, (y, n) in enumerate([(21, 7), (30, 7), (39, 6)]):
+        x0 = 9 + linha * 2
+        for k in range(n):
+            t.ret(x0 + k * 7, y, x0 + k * 7 + 5, y + 6, 1.5, 0xFFFFFF)
+    t.ret(17, 48, 47, 54, 2, 0xFFFFFF)
+
+
 def ui_ia(t):
     def brilho(cx, cy, r, cor):
         pts = []
@@ -484,17 +493,37 @@ def tocador(t):
     t.poligono([(33.5, 16), (44, 20), (44, 27), (33.5, 23)], 0xFFDF4A)   # bandeirola
 
 
+def saguicode(t):
+    """O Sagui Code: a cara do sagui (tufos brancos) sobre uma tela escura,
+    com os sinais de código "</>" embaixo."""
+    t.ret(5, 6, 59, 58, 8, vertical(0x34404C, 0x1C232B, 6, 58))
+    t.disco(19, 21, 7.5, 0xF5F5F0)                       # tufos das orelhas
+    t.disco(45, 21, 7.5, 0xF5F5F0)
+    t.disco(32, 24, 13, vertical(0x5A4433, 0x3A2B20, 11, 37))
+    t.disco(32, 12.5, 4, 0xF5F5F0, ry=3)                 # a mancha branca da testa
+    t.disco(32, 27, 8.5, vertical(0xC99A82, 0xA67660, 19, 35), ry=8)
+    t.disco(28.5, 25.5, 2.4, 0x17120F)
+    t.disco(35.5, 25.5, 2.4, 0x17120F)
+    t.disco(29.2, 24.8, 0.8, 0xFFFFFF)
+    t.disco(36.2, 24.8, 0.8, 0xFFFFFF)
+    t.disco(32, 30.5, 1.4, 0x3C2D23, ry=1)
+    t.traco([(22, 43), (15, 48.5), (22, 54)], 3.4, 0x42E584)   # <
+    t.traco([(35.5, 41.5), (28.5, 55.5)], 3.4, 0xFFDF4A)       # /
+    t.traco([(42, 43), (49, 48.5), (42, 54)], 3.4, 0x42E584)   # >
+
+
 ICONES = [("arquivos", arquivos), ("terminal", terminal), ("editor", editor), ("calculadora", calculadora),
           ("banana", banana), ("sagui3d", sagui3d), ("sobre", sobre), ("pendrive", pendrive),
           ("configuracoes", configuracoes), ("cipo", cipo), ("instalado", instalado),
           ("monitor", monitor), ("visualizador", visualizador), ("musica", musica), ("energia", energia),
           ("lupa", lupa), ("chuva", chuva), ("triangulos", triangulos), ("codigo", codigo),
-          ("componentes", componentes), ("tocador", tocador)]
+          ("componentes", componentes), ("tocador", tocador),
+          ("saguicode", saguicode)]
 TAMANHOS = [(64, ""), (40, "_40"), (20, "_20")]
 # Os programas recebem só o tamanho 20 (libsagui, icones.h): os ícones dos
 # programas e os da interface, com o prefixo icone_.
 INTERFACE = [("relogio", ui_relogio), ("aparencia", ui_aparencia), ("som", ui_som), ("rede", ui_rede),
-             ("programas", ui_programas), ("info", ui_info), ("ia", ui_ia), ("lixeira", ui_lixeira),
+             ("programas", ui_programas), ("info", ui_info), ("ia", ui_ia), ("teclado", ui_teclado), ("lixeira", ui_lixeira),
              ("voltar", ui_voltar), ("nova_pasta", ui_nova_pasta), ("apagar", ui_apagar),
              ("restaurar", ui_restaurar), ("tocar", ui_tocar), ("pausar", ui_pausar),
              ("anterior", ui_anterior), ("proxima", ui_proxima), ("teste", ui_teste)]

@@ -260,6 +260,7 @@ static const uint32_t *px_de(const char *processo)
         { "sobre-o-sistema", arte_px_sobre_40 }, { "energia", arte_px_energia_40 }, { "cipo", arte_px_cipo_40 },
         { "sagui-monitor", arte_px_monitor_40 }, { "top", arte_px_monitor_40 },                     /* H88 */
         { "visualizador", arte_px_visualizador_40 }, { "musica", arte_px_musica_40 }, { "tocador", arte_px_tocador_40 },
+        { "saguicode-janela", arte_px_saguicode_40 },
     };
     for (unsigned i = 0; i < sizeof t / sizeof t[0]; i++) if (txt_compara(t[i].p, processo) == 0) return t[i].px;
     return arte_px_instalado_40;
@@ -373,7 +374,8 @@ static const programa_menu_t catalogo[] = {
     { "Sagui Monitor", "/bin/sagui-monitor", NULL, CAT_SISTEMA, arte_px_monitor_40, "processos tarefas top cpu memoria" },
     { "Sobre o SaguiOS", "/bin/sobre-o-sistema", NULL, CAT_SISTEMA, arte_px_sobre_40, "versao informacoes sistema" },
     { "Desligar", "/bin/energia", NULL, CAT_SISTEMA, arte_px_energia_40, "energia reiniciar sair" },
-    { "Sagui Code", "/bin/terminal", "/bin/saguicode", CAT_DESENVOLVIMENTO, arte_px_codigo_40, "ia agente programar codigo" },
+    { "Sagui Code", "/bin/saguicode-janela", NULL, CAT_DESENVOLVIMENTO, arte_px_saguicode_40, "ia agente programar codigo" },
+    { "Sagui Code (terminal)", "/bin/terminal", "/bin/saguicode", CAT_DESENVOLVIMENTO, arte_px_codigo_40, "ia agente programar codigo terminal" },
     { "Componentes", "/bin/componentes", NULL, CAT_DESENVOLVIMENTO, arte_px_componentes_40, "demonstracao botoes interface libsagui" },
 };
 #define QTD_CATALOGO (int)(sizeof catalogo / sizeof catalogo[0])
@@ -793,12 +795,25 @@ static void desenhar_ctx(void)
     }
 }
 
+/* Abre um programa; "caminho" pode trazer argumentos separados por espaço
+ * (o Sagui Code abre como "/bin/terminal -e /bin/saguicode"). */
 static void abrir_programa(const char *caminho)
 {
-    const char *nome = caminho;
-    for (const char *p = caminho; *p; p++) if (*p == '/') nome = p + 1;
-    char *argv[] = { (char *)nome, NULL };
-    int pid = processo_executar(caminho, 1, argv, NULL);
+    static char linha[128];
+    char *argv[6];
+    int argc = 0;
+    txt_copia_n(linha, caminho, sizeof linha);
+    for (char *p = linha; *p && argc < 5;) {
+        while (*p == ' ') *p++ = 0;
+        if (!*p) break;
+        argv[argc++] = p;
+        while (*p && *p != ' ') p++;
+    }
+    if (!argc) return;
+    argv[argc] = NULL;
+    const char *prog = argv[0];
+    for (const char *p = prog; *p; p++) if (*p == '/') argv[0] = (char *)p + 1;
+    int pid = processo_executar(prog, argc, argv, NULL);
     klog("[GUI] abrir %s (pid %d)\n", caminho, pid);
 }
 

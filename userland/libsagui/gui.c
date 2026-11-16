@@ -394,7 +394,7 @@ static void cursor_visivel(area_t *a)
     if (lin >= a->topo + vis) a->topo = lin - vis + 1;
 }
 
-/* Seleção (pedido do Eli: copiar e colar). Devolve false se não há. */
+/* Seleção, para copiar e colar. Devolve false se não há. */
 static bool selecao(area_t *a, int *ini, int *fim)
 {
     if (!a->sel || a->sel - 1 == a->cursor) return false;

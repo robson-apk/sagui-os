@@ -3,7 +3,7 @@
 
 Critério: captura mostra o terminal gráfico com o texto
 `Ação, vovô, pão, ÇÃO, à é í ó ú` correto.
-Também: edição da linha com as setas (pedido do Eli no teste da fase 3),
+Também: edição da linha com as setas (ajuste do teste da fase 3),
 texto de um programa em segundo plano não se mistura com a linha digitada, e
 sem modo gráfico o sistema avisa e continua em modo texto.
 """

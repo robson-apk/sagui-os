@@ -59,7 +59,7 @@ static const char *const ic_programa[] = {
     ".PPPPPPPPPPPPPP.", "................", "................", "................",
 };
 
-/* Ícones por tipo de arquivo (pedido do Eli: o .wav aparecia como texto). */
+/* Ícones por tipo de arquivo (antes, um .wav aparecia com o ícone de texto). */
 static const char *const ic_musica[] = {          /* uma nota musical */
     "..PPPPPPPPPPPP..", "..PBBBBBBBBBBP..", "..PBBBBBNNNBBP..", "..PBBBBBNBNNBP..",
     "..PBBBBBNBBNBP..", "..PBBBBBNBBBBP..", "..PBBBBBNBBBBP..", "..PBBBBBNBBBBP..",
@@ -332,8 +332,25 @@ static void abrir_item(int i)
     char *argv[3];
     int pid;
     if (tipos[i] == TIPO_PROGRAMA) {
-        argv[0] = nomes[i]; argv[1] = NULL;
-        pid = executar(c, argv);
+        /* Só programa com a marca de janela (e_flags do ELF, posta pelo cc)
+         * abre direto; os de texto e os sem marca abrem num Terminal, senão
+         * o que escrevem não aparece em lugar nenhum. */
+        unsigned char cab[52];
+        unsigned flags = 0;
+        int fd = abrir(c, ABRIR_LER);
+        if (fd >= 0) {
+            if (ler(fd, cab, sizeof cab) == (int)sizeof cab)
+                flags = (unsigned)cab[36] | ((unsigned)cab[37] << 8) | ((unsigned)cab[38] << 16) | ((unsigned)cab[39] << 24);
+            fechar(fd);
+        }
+        /* Os programas do sistema (/bin) já sabem o que são: abrem direto. */
+        if (flags == ELF_SAGUI_JANELA || comeca_com(c, "/bin/")) {
+            argv[0] = nomes[i]; argv[1] = NULL;
+            pid = executar(c, argv);
+        } else {
+            char *t[4] = { "terminal", "-e", c, NULL };
+            pid = executar("/bin/terminal", t);
+        }
         registrar("arquivos: executando %s (pid %d)", c, pid);
     } else if (tem_extensao(nomes[i], ".png|.jpg|.jpeg|.gif|.webp|.bmp|.sgi")) {   /* H87 */
         argv[0] = "visualizador"; argv[1] = c; argv[2] = NULL;

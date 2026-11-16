@@ -548,6 +548,12 @@ static void pagina_interna(const char *url, texto_t *r)
              "</ul><h2>Procurar na Wikipédia</h2>"
              "<form action=\"https://pt.wikipedia.org/w/index.php\"><input type=\"hidden\" name=\"title\" value=\"Especial:Pesquisar\">"
              "<input type=\"search\" name=\"search\"> <input type=\"submit\" value=\"Procurar\"></form>"
+             /* Busca na web: o Google bloqueia navegadores que ele não conhece
+              * ("tráfego incomum"); o DuckDuckGo Lite responde em HTML simples,
+              * sem JavaScript. */
+             "<h2>Procurar na web</h2>"
+             "<form action=\"https://lite.duckduckgo.com/lite/\" method=\"post\">"
+             "<input type=\"text\" name=\"q\"> <input type=\"submit\" value=\"Procurar no DuckDuckGo\"></form>"
              "<h2>Dicas</h2><div class=\"dica\"><ul><li>Setas, PgUp, PgDn, Home e End rolam a página.</li>"
              "<li>Backspace volta para a página anterior; Ctrl+L vai para o endereço.</li>"
              "<li>Também abre arquivos do SaguiOS, como <a href=\"/leia-me.txt\">/leia-me.txt</a>.</li></ul></div>");

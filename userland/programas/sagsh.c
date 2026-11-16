@@ -45,6 +45,28 @@ static const comando_t comandos[] = {
     { "ps", "processos", false, false, "lista processos", "ps", "Mostra os processos em execução: PID, pai, estado, memória e tempo de CPU." },
     { "top", "monitor", false, false, "processos ao vivo", "top [-n vezes]", "Mostra os processos, a memória e a %CPU de cada um, atualizando a cada segundo. q sai." },
     { "grep", "procurar", false, false, "procura texto", "grep [-i] [-n] [-v] [-c] <texto> [arquivo...]", "Mostra as linhas que contêm o texto (ex.: ls bin | grep a). -i ignora maiúsculas, -n numera, -v inverte, -c conta." },
+    /* Utilitários de texto (H91, do fork SaguiOS-Extended do Alejandro Anuncibay). */
+    { "head", "inicio", false, false, "começo do texto", "head [-n N | -N] [-c N] [-q | -v] [arquivo...]", "Mostra as primeiras linhas (10, ou N com -n) de arquivos ou da entrada (ex.: ls bin | head -3). -c conta bytes." },
+    { "tail", "fim", false, false, "fim do texto", "tail [-n [+]N] [-c [+]N] [-f] [arquivo...]", "Mostra as últimas linhas (10, ou N com -n); com +N, da linha N em diante. -f continua mostrando o que for acrescentado." },
+    { "sort", "ordenar", false, false, "ordena linhas", "sort [-rnufbc] [-k N[,M]] [-t C] [-o arquivo] [arquivo...]", "Ordena as linhas. -r inverte, -n compara números, -u tira repetidas, -f ignora maiúsculas, -k ordena pelo campo N, -t escolhe o separador." },
+    { "uniq", "unicos", false, false, "junta repetidas", "uniq [-c] [-d | -u] [-i] [-f N] [entrada [saída]]", "Junta linhas repetidas seguidas (use depois do sort). -c conta, -d só as repetidas, -u só as únicas, -i ignora maiúsculas." },
+    { "cut", "cortar", false, false, "corta colunas", "cut -f LISTA [-d C] [-s] | -c LISTA [arquivo...]", "Mostra só alguns campos (-f, separados por -d; o padrão é Tab) ou colunas (-c) de cada linha. LISTA: 2  1,3  2-4  3-." },
+    { "tr", "trocar", false, false, "troca letras", "tr [-cds] CONJUNTO1 [CONJUNTO2]", "Troca as letras do conjunto 1 pelas do 2 (ex.: tr a-z A-Z ou tr [:lower:] [:upper:]). -d apaga, -s junta repetidas, -c usa o complemento." },
+    { "seq", "sequencia", false, false, "conta números", "seq [-w] [-s SEP] [primeiro [passo]] último", "Escreve uma sequência de números, um por linha (ex.: seq 5, seq 10 -2 0, seq 0 0.5 2). -w iguala a largura, -s troca o separador." },
+    { "rev", "inverter", false, false, "inverte as letras", "rev [arquivo...]", "Escreve cada linha de trás para a frente (sagui vira iugas)." },
+    { "tac", "de-tras", false, false, "inverte a ordem", "tac [arquivo...]", "Escreve as linhas na ordem inversa, da última para a primeira." },
+    { "nl", "numerar", false, false, "numera linhas", "nl [-b a|t] [-n ln|rn|rz] [-w N] [-s SEP] [-v N] [-i N] [arquivo...]", "Numera as linhas com texto (com -b a, todas). -w largura, -s separador, -v primeiro número, -i incremento." },
+    { "diff", "diferencas", false, false, "compara arquivos", "diff [-u] [-q] [-i] [-b] arquivo1 arquivo2", "Mostra as linhas que mudaram de um arquivo para o outro (< saiu, > entrou). -u formato unificado, -q só diz se mudou, -i ignora maiúsculas, -b espaços." },
+    { "find", "procurar-arquivo", false, false, "acha arquivos", "find [pasta...] [-name P] [-iname P] [-type f|d] [-size [+-]N[ck]] [-empty] [-maxdepth N]", "Procura arquivos e pastas, descendo pelas subpastas (ex.: find /usb -name \"*.txt\"). ! inverte a condição seguinte." },
+    { "sed", "editar-fluxo", false, false, "edita texto", "sed [-n] [-E] [-e roteiro]... [roteiro] [arquivo...]", "Edita o texto linha a linha: s/velho/novo/g troca, 3d apaga a linha 3, /^#/d apaga as que começam com #, -n 2,4p mostra só as linhas 2 a 4." },
+    { "tree", "arvore", false, false, "árvore de pastas", "tree [-a] [-d] [-L N] [pasta...]", "Desenha as pastas e os arquivos como uma árvore. -d só pastas, -L N desce até N níveis, -a mostra os escondidos." },
+    { "cal", "calendario", false, false, "calendário", "cal [[mês] ano]", "Mostra o calendário do mês de hoje, de um mês (cal 2 2028) ou do ano inteiro (cal 2027)." },
+    { "bc", "calcular", false, false, "calcula contas", "bc [-l] [-e conta]... [arquivo...]", "Calculadora com números de muitos dígitos: echo \"2^100\" | bc, echo \"scale=2; 10/3\" | bc. Tem + - * / % ^, sqrt(), variáveis e scale (casas)." },
+    { "expr", "expressao", false, false, "calcula expressão", "expr EXPRESSÃO", "Calcula uma expressão com cada parte separada: expr 3 + 4, expr 7 / 2, expr abc = abc, expr length sagui. Código 1 se der 0 ou vazio." },
+    { "base64", NULL, false, false, "codifica base64", "base64 [-d [-i]] [-w N] [arquivo]", "Codifica um arquivo em letras e números (RFC 4648); -d decodifica de volta, -w muda a largura das linhas (0 = uma só)." },
+    { "md5sum", "md5", false, false, "resumo MD5", "md5sum [arquivo...] | md5sum -c lista", "Calcula o resumo MD5 (RFC 1321) de arquivos, para conferir cópias; -c confere uma lista \"resumo  nome\"." },
+    { "od", "octal", false, false, "bytes em números", "od [-A d|o|x|n] [-t TIPO | -b | -c | -d | -o | -x] [-j N] [-N N] [-v] [arquivo...]", "Mostra os bytes de um arquivo como números: octal (padrão), -t x1 hexadecimal, -c letras, -t d2 decimal com sinal..." },
+    { "xxd", "hexa", false, false, "bytes em hexa", "xxd [-c N] [-g N] [-l N] [-s N] [-u] [-p] [-r] [arquivo]", "Mostra os bytes em hexadecimal ao lado das letras; -p só o hexadecimal, -r faz o caminho de volta (do hexadecimal para os bytes)." },
     { "kill", "matar", false, false, "encerra processo", "kill <pid>", "Encerra um processo pelo número (veja os números com ps)." },
     { "clear", "limpar", true, false, "limpa a tela", "clear", "Limpa a tela." },
     { "ajuda", NULL, true, false, "esta ajuda", "ajuda [comando]", "Lista os comandos, ou explica um comando." },
@@ -66,6 +88,7 @@ static const comando_t comandos[] = {
     { "usb", NULL, false, false, "diagnóstico USB", "usb", "Mostra os controladores USB 2.0, as portas e os dispositivos." },
     { "pci", NULL, false, false, "lista o hardware", "pci", "Lista os dispositivos PCI (rede, som, USB, vídeo) e o que o SaguiOS já usa." },
     { "config", NULL, false, false, "configurações", "config [chave [valor]]", "Lê ou muda uma configuração do sistema (guardada no pendrive)." },
+    { "teclado", NULL, false, false, "layout do teclado", "teclado [es | abnt2]", "Mostra ou troca o layout do teclado: abnt2 (português do Brasil) ou es (espanhol). Fica guardado nas configurações." },
     { "som", NULL, false, false, "placa de som", "som [teste [Hz [ms]] | volume [0-100]]", "Mostra a placa de som, toca um tom de teste ou muda o volume." },
     { "tocar", NULL, false, false, "toca um .wav", "tocar arquivo.wav", "Toca um arquivo WAV (PCM de 8 ou 16 bits) pela placa de som." },
     { "rede", NULL, false, false, "mostra a rede", "rede", "Mostra a placa de rede, o endereço IP, o roteador e o DNS." },
@@ -345,9 +368,9 @@ typedef struct {
 static bool eh_operador(char c) { return c == '|' || c == '<' || c == '>' || c == '&'; }
 
 /* Separa a linha em palavras e operadores (que podem vir colados nas
- * palavras: "ls bin|conta"). Aspas agrupam palavras com espaços; dentro
- * delas, | > < & são texto comum. As palavras são copiadas, sem as aspas,
- * para um armazém à parte. */
+ * palavras: "ls bin|conta"). Aspas (duplas ou simples) agrupam palavras
+ * com espaços; dentro delas, | > < & são texto comum. As palavras são
+ * copiadas, sem as aspas, para um armazém à parte. */
 static char armazem[MAX_LINHA * 2];
 
 static int separar(const char *linha, token_t *t, int max)
@@ -367,10 +390,12 @@ static int separar(const char *linha, token_t *t, int max)
         }
         char *ini = armazem + usado;
         while (*p && *p != ' ' && !eh_operador(*p) && usado < sizeof armazem - 2) {
-            if (*p == '"') {
-                p++;
-                while (*p && *p != '"' && usado < sizeof armazem - 2) armazem[usado++] = *p++;
-                if (*p == '"') p++;
+            if (*p == '"' || *p == '\'') {
+                /* Aspas simples também (H91): é como os roteiros do sed e
+                 * os conjuntos do tr costumam ser escritos ('s/a/b/'). */
+                char aspa = *p++;
+                while (*p && *p != aspa && usado < sizeof armazem - 2) armazem[usado++] = *p++;
+                if (*p == aspa) p++;
             } else {
                 armazem[usado++] = *p++;
             }

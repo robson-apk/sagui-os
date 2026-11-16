@@ -104,7 +104,7 @@ def main():
         time.sleep(0.8)
         png = m.captura("H88-menu")
         com_icone, contagem = 0, []
-        for k in range(18):
+        for k in range(19):
             cx, cy = 44 + (k % 5) * 108 + 34, 134 + (k // 5) * 92 + 10
             fundo = cor_do_pixel(png, cx - 30, cy - 6)          # canto da célula: fundo do menu
             pontos = [cor_do_pixel(png, cx + u, cy + v) for u in range(2, 40, 3) for v in range(2, 40, 3)]
@@ -113,14 +113,14 @@ def main():
             if n >= 12:                                         # ícones escuros (Terminal) também
                 com_icone += 1
         vazias = []                                             # controle: células sem programa
-        for k in (18, 19):
+        for k in (19,):
             cx, cy = 44 + (k % 5) * 108 + 34, 134 + (k // 5) * 92 + 10
             fundo = cor_do_pixel(png, cx - 30, cy - 6)
             vazias.append(sum(distancia(cor_do_pixel(png, cx + u, cy + v), fundo) > 40
                               for u in range(2, 40, 3) for v in range(2, 40, 3)))
         print(f"  pixels de ícone por célula: {contagem}; células vazias: {vazias}")
         verificar(max(vazias) < 12, f"as células vazias não parecem ícone ({vazias})")
-        verificar(com_icone >= 17, f"o menu tem ícones ({com_icone} de 18 itens)")
+        verificar(com_icone >= 18, f"o menu tem ícones ({com_icone} de 19 itens)")
         m.clique(600, 400)
         time.sleep(0.5)
 

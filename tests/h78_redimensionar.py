@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""H78 - redimensionar e maximizar janelas (pedido do Eli).
+"""H78 - redimensionar e maximizar janelas.
 
 Critérios: arrastar o canto do Terminal muda o tamanho da janela e o número
 de linhas e colunas; o botão de maximizar ocupa a tela entre a barra de cima

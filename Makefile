@@ -67,7 +67,10 @@ CRIPTO_OBJ := $(patsubst userland/%.c,$(B)/userland/%.o,$(wildcard userland/crip
 LIBSAGUI_OBJ := $(CRIPTO_OBJ) $(B)/userland/fonte8x16.o $(B)/userland/icones.o \
                 $(patsubst userland/libsagui/%.c,$(B)/userland/libsagui/%.o,$(wildcard userland/libsagui/*.c)) \
                 $(patsubst userland/libsagui/%.asm,$(B)/userland/libsagui/%.asm.o,$(wildcard userland/libsagui/*.asm))
-USER_HDR  := $(wildcard userland/inc/*.h) $(wildcard userland/cripto/*.h) $(wildcard userland/tls/*.h) $(wildcard userland/ssh/*.h) kernel/inc/abi.h
+# (userland/programas/*.h: código dividido entre dois programas, como o motor
+# de expressões do sed e do expr, H91.)
+USER_HDR  := $(wildcard userland/inc/*.h) $(wildcard userland/cripto/*.h) $(wildcard userland/tls/*.h) $(wildcard userland/ssh/*.h) \
+            $(wildcard userland/programas/*.h) kernel/inc/abi.h
 PROGRAMAS := $(patsubst userland/programas/%.c,$(B)/userland/bin/%,$(wildcard userland/programas/*.c))
 # O Sagui 3D (B4) tem vários arquivos, numa pasta própria.
 SAGUI3D_OBJ := $(patsubst userland/sagui3d/%.c,$(B)/userland/sagui3d/%.o,$(wildcard userland/sagui3d/*.c))
@@ -95,10 +98,13 @@ PROGRAMAS += $(B)/userland/bin/visualizador $(B)/userland/bin/musica $(B)/userla
 # mp3info, o comando que o testa. (A janela do Tocador usa o mesmo mp3.o.)
 MP3INFO_OBJ := $(B)/userland/tocador/mp3info.o $(B)/userland/tocador/mp3.o
 PROGRAMAS += $(B)/userland/bin/mp3info
-# O Sagui Code (fase 8).
-SAGUICODE_OBJ := $(patsubst userland/saguicode/%.c,$(B)/userland/saguicode/%.o,$(wildcard userland/saguicode/*.c))
-PROGRAMAS += $(B)/userland/bin/saguicode
-# O Tocador de músicas (pedido do Eli): a janela e, quando chegar, o decodificador de MP3.
+# O Sagui Code (fase 8): o núcleo do agente (ia.c e agente.c) com duas
+# interfaces, o Terminal (saguicode) e a janela (saguicode-janela, H89).
+SAGUICODE_NUCLEO := $(B)/userland/saguicode/ia.o $(B)/userland/saguicode/agente.o
+SAGUICODE_OBJ := $(SAGUICODE_NUCLEO) $(B)/userland/saguicode/saguicode.o
+SAGUICODE_JANELA_OBJ := $(SAGUICODE_NUCLEO) $(B)/userland/saguicode/janela.o
+PROGRAMAS += $(B)/userland/bin/saguicode $(B)/userland/bin/saguicode-janela
+# O Tocador de músicas (H87): a janela e, quando chegar, o decodificador de MP3.
 TOCADOR_OBJ := $(B)/userland/tocador/tocador.o $(B)/userland/tocador/mp3.o
 PROGRAMAS += $(B)/userland/bin/tocador
 # O compilador C do SaguiOS (fase 7 da versão 2.0): o comando cc, a libsagui
@@ -265,13 +271,18 @@ $(B)/userland/bin/mp3info: $(MP3INFO_OBJ) $(LIBSAGUI_OBJ) userland/programa.ld
 	$(LD) $(ULDFLAGS) -o $@.elf $(MP3INFO_OBJ) $(LIBSAGUI_OBJ)
 	objcopy --strip-all $@.elf $@
 
-$(B)/userland/saguicode/%.o: userland/saguicode/%.c userland/saguicode/ia.h $(USER_HDR)
+$(B)/userland/saguicode/%.o: userland/saguicode/%.c userland/saguicode/ia.h userland/saguicode/agente.h $(USER_HDR)
 	@mkdir -p $(dir $@)
 	$(CC) $(UCFLAGS) -c -o $@ $<
 
 $(B)/userland/bin/saguicode: $(SAGUICODE_OBJ) $(LIBSAGUI_OBJ) userland/programa.ld
 	@mkdir -p $(dir $@)
 	$(LD) $(ULDFLAGS) -o $@.elf $(SAGUICODE_OBJ) $(LIBSAGUI_OBJ)
+	objcopy --strip-all $@.elf $@
+
+$(B)/userland/bin/saguicode-janela: $(SAGUICODE_JANELA_OBJ) $(LIBSAGUI_OBJ) userland/programa.ld
+	@mkdir -p $(dir $@)
+	$(LD) $(ULDFLAGS) -o $@.elf $(SAGUICODE_JANELA_OBJ) $(LIBSAGUI_OBJ)
 	objcopy --strip-all $@.elf $@
 
 # -Os: o cc vai dentro da imagem, e o tamanho pesa mais que a velocidade.

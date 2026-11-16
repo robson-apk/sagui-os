@@ -45,6 +45,15 @@ ficarem misturados no meio do Cipó, foram separados, com a licença original e 
   contagens de fatores de escala da ISO/IEC 13818-3. São dados que todo decodificador de MP3 tem
   de ter, iguais em todos; o código que os usa (`userland/tocador/mp3.c`) foi escrito aqui (D047).
 
+### Dados do decodificador de H.264 (perfil High)
+
+- **Tabelas da norma do H.264** (`userland/video/h264_alto_tab.h`): os contextos do CABAC para
+  os blocos 8x8 (tabela 9-43), o normAdjust8x8 (equação 8-316) e as listas de escala padrão
+  (tabelas 7-3 e 7-4) da Recomendação ITU-T H.264 (ISO/IEC 14496-10). São dados que todo
+  decodificador de H.264 tem de ter, iguais em todos; o código do perfil High que os usa (em
+  `userland/video/h264.c`) foi escrito aqui, a partir do texto da norma (D048). As tabelas do
+  CABAC e do CAVLC que já vinham do pull request #6 continuam em `terceiros/ffmpeg-h264-tabelas/`.
+
 ### Imagens
 
 #### Fundo "Mata Atlântica" (`/arte/mata-atlantica.sgi`)

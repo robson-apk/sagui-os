@@ -554,14 +554,16 @@ void area_icone_abrir(int i)
     if (i >= QTD_ICONES) {
         char caminho[NOME_MAX + 24];
         snformatar(caminho, sizeof caminho, "/usb/programas/%s", instalados[i - QTD_ICONES]);
-        /* Programa de texto (sem a marca de janela que o cc põe no e_flags):
-         * abre dentro de um Terminal, senão o que ele escreve se perde. */
+        /* Só um programa com a marca de janela (e_flags, posta pelo cc) abre
+         * direto. Os de texto e os sem marca (compilados antes da marca
+         * existir) abrem dentro de um Terminal: senão rodavam sem janela,
+         * terminavam e nada aparecia na tela. */
         uint8_t *img = NULL;
         uint32_t tam = 0;
         bool janela = true;
         if (vfs_ler_inteiro(caminho, &img, &tam) == 0 && tam >= 52) {
             uint32_t flags = (uint32_t)img[36] | ((uint32_t)img[37] << 8) | ((uint32_t)img[38] << 16) | ((uint32_t)img[39] << 24);
-            janela = flags != ELF_SAGUI_TEXTO;            /* sem marca (GCC): abre direto, como antes */
+            janela = flags == ELF_SAGUI_JANELA;
         }
         if (img) kfree(img);
         int pid;

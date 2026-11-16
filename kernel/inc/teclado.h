@@ -1,4 +1,4 @@
-/* teclado.h - teclado PS/2 com layout ABNT2.
+/* teclado.h - teclado PS/2 com layout ABNT2 ou espanhol (teclado.layout, H90).
  *
  * Cada tecla vira um código: de 1 a 255 é um caractere Latin-1 (com Ctrl+letra
  * virando o código de controle 1-26, como Ctrl+C = 3); de 0x100 em diante são

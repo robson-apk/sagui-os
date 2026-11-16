@@ -23,7 +23,9 @@ inspiradas nas do kernel do Linux e bem mais simples.
   claramente no pull request. Detalhes em [`AGENTS.md`](AGENTS.md) e na
   decisão D041 de `docs/decisoes.md`.
 - As ferramentas de build e de teste (Python, GCC, QEMU) ficam fora dessa regra.
-- Usou IA? Ótimo, mas a responsabilidade pelo que é enviado é sua. As regras
+- Usou IA? Ótimo, mas a responsabilidade pelo que é enviado é **de quem envia
+  o pull request e assina os commits** (o `Signed-off-by`), nunca do mantenedor
+  nem da ferramenta de IA. As regras
   para a IA estão em [`AGENTS.md`](AGENTS.md) (muitas ferramentas leem esse
   arquivo sozinhas).
 

@@ -15,7 +15,7 @@ ICONE(arquivos) ICONE(terminal) ICONE(editor) ICONE(calculadora) ICONE(banana) I
 ICONE(sobre) ICONE(pendrive) ICONE(configuracoes) ICONE(cipo) ICONE(instalado)
 ICONE(monitor) ICONE(visualizador) ICONE(musica) ICONE(energia)
 /* interface */
-ICONE(relogio) ICONE(aparencia) ICONE(som) ICONE(rede) ICONE(programas) ICONE(info) ICONE(ia)
+ICONE(relogio) ICONE(aparencia) ICONE(som) ICONE(rede) ICONE(programas) ICONE(info) ICONE(ia) ICONE(teclado)
 ICONE(lixeira) ICONE(voltar) ICONE(nova_pasta) ICONE(apagar) ICONE(restaurar)
 ICONE(tocar) ICONE(pausar) ICONE(anterior) ICONE(proxima) ICONE(teste)
 #undef ICONE

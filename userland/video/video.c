@@ -8,7 +8,8 @@
  * bits, estéreo): o áudio do arquivo (44,1 kHz, por exemplo) é convertido
  * para 48 kHz por interpolação linear, como no tocar. Pela rede, o arquivo
  * é baixado inteiro antes de tocar (o HTTP da 2.0 entrega o corpo de uma vez
- * só; tocar enquanto baixa fica para depois). O relógio é o de parede. */
+ * só; tocar enquanto baixa fica para depois). O relógio é o de parede.
+ * O vídeo pode ser H.264 Baseline, Main ou High (D048). */
 #include "sagui.h"
 #include "gui.h"
 #include "http.h"
@@ -143,7 +144,13 @@ int principal(int argc, char **argv)
     if (m.n_video) {
         h = h264_novo();
         int rc = h ? h264_config(h, avcc, avcc_n, &tam_len) : -99;
-        if (rc < 0) { imprimir_em(ERROS, "video: H.264 não suportado\n"); registrar("video: H.264 recusado (%d, avcC %d bytes)", rc, avcc_n); h = NULL; }
+        if (rc < 0) {
+            /* o decodificador diz o que o vídeo tem que ele não faz (entrelaçado, 10 bits...) */
+            const char *motivo = h && h264_motivo(h) ? h264_motivo(h) : "formato desconhecido";
+            imprimir_em(ERROS, "video: H.264 não suportado (%s)\n", motivo);
+            registrar("video: H.264 recusado (%d, avcC %d bytes): %s", rc, avcc_n, motivo);
+            h = NULL;
+        }
     }
     aac_t *a = m.n_audio && asc_n ? aac_novo(asc, asc_n) : NULL;
     if (m.n_audio && !a) { imprimir_em(ERROS, "video: áudio não suportado (só AAC-LC)\n"); registrar("video: AAC recusado (asc %d bytes: %02x %02x)", asc_n, asc[0], asc[1]); }
@@ -172,7 +179,7 @@ int principal(int argc, char **argv)
      * anterior, para interpolar entre o fim de um quadro e o começo do outro */
     uint32_t passo = a ? (uint32_t)((double)aac_taxa(a) * 65536.0 / SOM_TAXA + 0.5) : 0, pos = 0;   /* sem divisão de 64 bits (libgcc) */
     int16_t ant[2] = { 0, 0 };
-    int iv = 0, ia = 0, mostrados = 0, pulados = 0;
+    int iv = 0, ia = 0, mostrados = 0, pulados = 0, erros_video = 0;
     unsigned inicio = tempo_ms(), parado_desde = 0;
     unsigned ultimo_quadro = 0;
     unsigned tempo_parado = 0, tempo_decod = 0, tempo_audio = 0;
@@ -234,6 +241,7 @@ int principal(int argc, char **argv)
                 h264_imagem_t im;
                 bool mostrou = false;
                 while (h264_imagem(h, &im)) {   /* com quadros B saem na ordem de exibição, às vezes 2 de uma vez */
+                    erros_video = im.erros;
                     if (dt - inicio <= prox + 20 || dt - ultimo_quadro >= 80) {
                         ultimo_quadro = dt;
                         desenhar(j, &im, esc, 0);
@@ -249,7 +257,7 @@ int principal(int argc, char **argv)
             esvaziado = true;
             h264_esvaziar(h);
             h264_imagem_t im;
-            while (h264_imagem(h, &im)) { desenhar(j, &im, esc, 0); jan_mostrar(j); mostrados++; }
+            while (h264_imagem(h, &im)) { erros_video = im.erros; desenhar(j, &im, esc, 0); jan_mostrar(j); mostrados++; }
         }
         if ((!h || iv >= m.n_video) && (!a || ia >= m.n_audio)) fim = true;
 
@@ -259,6 +267,8 @@ int principal(int argc, char **argv)
     }
     registrar("video: fim; %d quadros mostrados, %d pulados, %u ms; esperando rede %u ms, decodificando %u ms, audio %u ms, baixados %u bytes",
               mostrados, pulados, tempo_ms() - inicio, tempo_parado, tempo_decod, tempo_audio, tam);
+    /* quantos quadros o decodificador entregou e quantas fatias ele não conseguiu ler */
+    if (h) registrar("video: H.264: %d de %d quadros decodificados, %d erros", mostrados + pulados, m.n_video, erros_video);
     imprimir("video: %d quadros mostrados, %d pulados\n", mostrados, pulados);
     if (som >= 0) som_fechar(som);
     jan_fechar(j);

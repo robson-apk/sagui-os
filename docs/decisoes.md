@@ -1546,7 +1546,88 @@ e dá para explicar etapa por etapa; não havia motivo para a exceção.
   escritos pela norma, mas nenhum codificador à mão os gera: não foram
   testados.
 
-## D048. Todo o userland realinha a pilha para o SSE2 (H63)
+
+
+## D048. H.264 High no tocador de vídeo, pela norma (H88)
+
+**Contexto.** O `/bin/video` (do pull request #6, D043) decodificava H.264
+Baseline e Main. Os vídeos que o Eli testou (`sample-5s-360p.mp4`, o de 720p
+e o de 1080p) são do perfil **High** (profile_idc 100, nível 4.0, CABAC,
+quadros B), que é o que quase todo MP4 de hoje usa, e o tocador respondia
+"H.264 recusado (-2)".
+
+**Decisão: o High entra, escrito aqui a partir da norma.** O que o High
+acrescenta ao Main foi escrito em `userland/video/h264.c` lendo a
+Recomendação ITU-T H.264 (que a ITU publica de graça), sem consultar nem
+reproduzir nenhum decodificador existente; cada parte nova tem no comentário
+o item da norma de onde saiu:
+
+- o `transform_size_8x8_flag` de cada macrobloco e as condições para ele
+  existir (7.3.5), no CABAC (contextos 399 a 401, 9.3.3.1.1.10) e no CAVLC;
+- a **predição intra 8x8** (8.3.2), com o filtro das amostras vizinhas;
+- a **transformada inversa 8x8** (8.5.13) e a desquantização com
+  LevelScale8x8 (8.5.9);
+- as **matrizes de escala** do SPS e do PPS (7.3.2.1.1.1, tabela 7-2, regras
+  A e B), que valem também para os blocos 4x4; sem matriz, a conta é
+  exatamente a de antes;
+- os coeficientes dos blocos 8x8 no CABAC (ctxBlockCat 5, tabela 9-43) e no
+  CAVLC (quatro blocos 4x4 entrelaçados);
+- o filtro de desbloqueio, que não alisa as bordas que caem no meio de um
+  bloco 8x8 (8.7);
+- o `second_chroma_qp_index_offset` (o Cr pode ter QP diferente do Cb).
+
+Só progressivo, 4:2:0 e 8 bits. O que não entra é recusado com o motivo no
+diário ("video entrelacado", "mais de 8 bits por amostra", "croma que nao e
+4:2:0", "modo sem perdas"...): `h264_motivo`.
+
+**Os dados da norma** que isso pede estão em `userland/video/h264_alto_tab.h`,
+com o número da tabela de cada um: os contextos do CABAC para blocos 8x8
+(9-43), o normAdjust8x8 (equação 8-316) e as listas de escala padrão (7-3 e
+7-4). O ziguezague 8x8 é calculado. Os valores iniciais dos contextos novos do
+CABAC já estavam nas tabelas de `terceiros/ffmpeg-h264-tabelas` (D043), que
+continuam lá, separadas.
+
+**Como se sabe que está certo, e o que não se sabe.** Não há decodificador de
+referência no PC de build (nem ffmpeg, nem libavcodec), então a imagem **não
+foi comparada amostra por amostra** com a de outro decodificador. O que
+`tests/h88_video_alto.py` confere:
+
+- peças isoladas, por contas que não dependem de vídeo (`video_pc
+  --conferir`): as 64 funções de base da transformada 8x8 são ortogonais; o
+  normAdjust8x8 compensa o tamanho de cada uma (até 5%); a desquantização nova
+  com matriz plana é igual à antiga; as listas de escala seguem as regras A e
+  B; a predição intra 8x8 filtra as vizinhas e continua rampas;
+- nos três vídeos: saem os 171 quadros, nenhuma fatia dá erro, e as 513
+  fatias CABAC terminam exatamente no fim dos seus dados (um símbolo lido
+  errado, por exemplo um contexto trocado na tabela 9-43, desalinharia o
+  resto da fatia). Os vídeos usam de fato o High: no de 1080p, 8.749 MBs
+  intra 8x8 (os 9 modos) e 188.891 MBs inter com a transformada 8x8;
+- as imagens foram olhadas (quadros 0, 60, 100, 149 e 170): limpas, sem
+  blocos, inclusive no último quadro, 170 quadros depois do único quadro I
+  (um erro de reconstrução se acumularia até lá); a medida de "blocos à
+  mostra" do teste fica entre 1,0 e 1,3;
+- no SaguiOS (QEMU), `video /usb/v.mp4` decodifica os 171 quadros do vídeo de
+  360p sem erro, e a captura `H88-1-video` bate com o quadro decodificado no
+  PC (diferença média de 0,8 em 255).
+
+**Não testado:** matrizes de escala num vídeo de verdade (os três não as
+usam; só a leitura e as regras foram conferidas), o High com CAVLC (os três
+são CABAC; e o CAVLC do tocador continua sem quadros B) e a regressão do
+Baseline e do Main num vídeo (o `h82_video.py` precisa do ffmpeg, que este PC
+não tem; a desquantização foi conferida por conta). Os vídeos do Eli não
+estão no repositório: sem eles o teste só roda as conferências, e avisa.
+
+**Velocidade.** O decodificador é simples (uma amostra por vez, sem SIMD).
+Compilado em 32 bits no PC de build (EPYC 9354P): 360p a cerca de 150
+quadros/s, 720p a 37 e 1080p a 18; no QEMU emulado (sem KVM), 360p entre 15 e
+20 quadros/s. O G470 (Sandy Bridge, bem mais lento que esse PC) deve tocar
+360p com folga, e 720p e 1080p abaixo dos 30 quadros/s do vídeo (o tocador
+decodifica todos os quadros e pula os atrasados na tela): não foi medido lá. Mais da
+metade do tempo é a compensação de movimento; fica para uma história de
+desempenho. Junto veio uma economia barata: o MB com um vetor só é previsto de
+uma vez (16x16) em vez de em quatro blocos 8x8, com a mesma imagem.
+
+## D049. Todo o userland realinha a pilha para o SSE2 (H63, pull request #10)
 
 O D042 fez os programas usarem SSE2, e o D043 já tinha corrigido a pilha
 inicial e as pilhas trocadas do Cipó e do tocador. Faltava o outro lado: a
@@ -1560,7 +1641,53 @@ alinha a própria pilha ao entrar, então qualquer pilha trocada à mão (motor,
 JavaScript, compilador ou um programa futuro) é segura, e o Cipó e o tocador
 não precisam mais do flag separado. O kernel continua sem SSE e sem esse custo.
 
-## D049. Programas úteis: comandos de texto, pacotes, captura, imagens, música e lixeira (H87)
+## D050. Sagui Code: um núcleo do agente e duas interfaces (H89)
+
+O Sagui Code nasceu no Terminal, com o laço do agente misturado com a leitura
+do teclado e as cores. Para ganhar uma janela sem duplicar a lógica, o laço
+foi separado em `userland/saguicode/agente.c`: a conversa, as ferramentas, o
+resumo do contexto, a conta do gasto e o formato das conversas guardadas.
+O núcleo não escreve na tela; ele chama funções de uma estrutura
+(`agente_ui_t`): pedaço de texto, "pensando", ferramenta começou/acabou,
+aviso, pedido de licença e fim do pedido. O `saguicode` (Terminal) e o
+`saguicode-janela` são só interfaces sobre ele; o Terminal escreve
+exatamente o que escrevia antes.
+
+O laço anda um passo por vez (`agente_passo`: uma chamada ao modelo e as
+ferramentas pedidas). A janela trata os eventos entre um passo e outro, então
+não congela, e o botão Parar faz o pedido terminar antes do próximo passo. A
+chamada HTTP em si continua esperando a resposta (o texto vai aparecendo);
+uma tarefa separada para ela seria mais complexa do que vale agora.
+
+As sessões da janela ficam no pendrive de dados, em
+`/usb/.saguios/saguicode/sessoes/NNNN.json`, no mesmo formato do `/salvar` do
+Terminal, com dois campos a mais: `titulo` (o primeiro, para a lista ler só o
+começo do arquivo) e `gasto_micro` (o gasto da conversa). A sessão é guardada
+ao fim de cada pedido. Sem pendrive, as sessões ficam na memória enquanto a
+janela estiver aberta, e a janela avisa. O gasto total de todas as conversas
+fica nas configurações (`saguicode.gasto_total`, em milionésimos de dólar).
+A chave continua só em `chaves.txt`.
+
+## D051. Layout do teclado escolhido pelas configurações (H90)
+
+O teclado ganhou o layout espanhol (ES, teclado ISO de 105 teclas), além do
+ABNT2, trazido do fork SaguiOS-Extended de Alejandro Anuncibay e reescrito
+sobre o driver atual. No fork a troca era uma chamada de sistema nova; aqui
+ela é a configuração `teclado.layout` (`abnt2`, o padrão, ou `es`), para não
+mudar a ABI das chamadas de sistema e para a escolha ficar guardada no
+pendrive como as outras.
+
+O driver confere `config_geracao()` a cada tecla apertada (dentro da
+interrupção; `config_obter` só percorre uma tabela na memória) e relê a
+chave quando ela mudou, como o misturador faz com o volume. O comando
+`teclado [es | abnt2]` e a aba "Teclado" das Configurações só gravam a
+configuração. Os códigos de varredura são os mesmos nos dois layouts (o
+código diz a posição física da tecla); muda só a tabela de caracteres, o
+AltGr e a tecla Del do teclado numérico (ponto no ES). O euro do AltGr+E não
+existe no Latin-1 e ficou de fora. O ~ do AltGr+4 é tecla morta, como no
+ABNT2: ~ + espaço dá o próprio ~.
+
+## D052. Programas úteis: comandos de texto, pacotes, captura, imagens, música e lixeira (H87)
 
 **Pedido.** Deixar o sistema mais completo para o uso do dia a dia, sem
 código de terceiros novo: tudo foi escrito para o SaguiOS, e o que já existia
@@ -1615,7 +1742,7 @@ Arquivos. O `rm` do terminal continua apagando de vez, como no Unix.
 botão "Testar conexão": resolve example.com pelo DNS e abre uma conexão TCP na
 porta 80, com o tempo de cada passo.
 
-## D050. Revisão do visual: bordas suavizadas, ícones e Configurações (H88)
+## D053. Revisão do visual: bordas suavizadas, ícones e Configurações (H88)
 
 **Pedido.** O usuário apontou bordas com pontas, vidro mal feito, as
 Configurações feias, falta de ícones (só texto) e texto saindo dos botões. As
@@ -1671,7 +1798,7 @@ então os testes que clicam nele foram ajustados. O `-Wno-missing-field-initiali
 entra no `UCFLAGS` porque `botao_t` ganhou campos no fim: quem escreve
 `{ x, y, l, a, texto }` deixa o resto em zero, que é o certo.
 
-## D051. Menu Iniciar com todos os programas, busca e categorias (H89)
+## D054. Menu Iniciar com todos os programas, busca e categorias (H89)
 
 **Contexto.** O menu do sagui listava 13 programas numa coluna. Programas que
 existem em `/bin` e abrem janela (Chuva de letras, Triângulos 3D, Componentes,
@@ -1705,7 +1832,7 @@ categorias.
 `h78`, `h86`, `h88`) agora clicam na grade. O item k fica em
 `(28 + (k % 5) * 108 + 54, 134 + (k // 5) * 92 + 30)`.
 
-## D052. Laço de seleção na área de trabalho (H90)
+## D055. Laço de seleção na área de trabalho (H90)
 
 **Origem.** O laço translúcido foi feito pelo Robson no commit 0b3c462 (ramo
 `area-lixeira`, sobre a 1.0). O commit foi junto do pull request do Cipó (#6),
@@ -1728,7 +1855,7 @@ separadas.
 foi para 620 pixels, a sobra da fileira agora é repartida entre os chips
 (`chip_folga`) e a grade fica centralizada.
 
-## D053. Arquivos: laço, vários marcados, "Novo" no menu e nome editado na linha (H91)
+## D056. Arquivos: laço, vários marcados, "Novo" no menu e nome editado na linha (H91)
 
 **Pedido.** Queria a seleção translúcida também no Arquivos, as opções de
 criar no menu do botão direito (pasta, arquivo de texto e outros) e o nome

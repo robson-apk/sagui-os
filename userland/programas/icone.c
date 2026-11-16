@@ -1,5 +1,5 @@
 /* icone - ações do menu do botão direito nos ícones da área de trabalho
- * (pedido do Eli). O kernel desenha o menu, mas não tem caixas de texto:
+ * (H79). O kernel desenha o menu, mas não tem caixas de texto:
  * quem pergunta é este programa, com os diálogos do kit gráfico.
  *   icone renomear-programa /usb/programas/x x   troca o nome do arquivo
  *   icone renomear-icone /bin/terminal Terminal    só o nome que aparece (icone.<programa>)

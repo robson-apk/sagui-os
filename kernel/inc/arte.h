@@ -24,6 +24,7 @@ ARTE_PX(arquivos) ARTE_PX(terminal) ARTE_PX(editor) ARTE_PX(calculadora) ARTE_PX
 ARTE_PX(sobre) ARTE_PX(pendrive) ARTE_PX(configuracoes) ARTE_PX(cipo) ARTE_PX(instalado) ARTE_PX(tocador)
 ARTE_PX(lupa) ARTE_PX(chuva) ARTE_PX(triangulos) ARTE_PX(codigo) ARTE_PX(componentes)   /* H89 */
 ARTE_PX(monitor) ARTE_PX(visualizador) ARTE_PX(musica) ARTE_PX(energia)   /* H88 */
+ARTE_PX(saguicode)
 #undef ARTE_PX
 
 #endif

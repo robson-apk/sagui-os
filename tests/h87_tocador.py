@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""H87 - o Tocador de músicas (pedido do Eli no teste do G470).
+"""H87 - o Tocador de músicas.
 
 Critérios:
   - no Arquivos, dois cliques num .wav abrem o Tocador com a música (abrir pela
@@ -53,7 +53,7 @@ def main():
         m.clique(xi, yi, botao=2)                         # botão direito: o menu diz "Abrir no Tocador"
         s = esperar(m, "menu aberto (tipo 3", 10, antes)
         png = m.captura("H87-1-menu-abrir-no-tocador")
-        # Ícones por tipo (pedido do Eli): a nota verde da música no 1º item, a
+        # Ícones por tipo: a nota verde da música no 1º item, a
         # faixa azul da página no 4º, e o texto comum (sem verde) no 5º.
         from qemu import cor_do_pixel as cor
         ix = a["x"] + 140 + 6 + 6   # a lista começa em LATERAL (140) + 6; o ícone, 6 depois

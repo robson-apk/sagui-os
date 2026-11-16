@@ -1,4 +1,4 @@
-/* tocador.c - o Tocador de músicas do SaguiOS (pedido do Eli).
+/* tocador.c - o Tocador de músicas do SaguiOS (H87).
  *
  * Uma janela com a música que está tocando, o tempo, uma barra de progresso
  * (clicar nela pula para aquele ponto), os botões anterior / tocar-pausar /

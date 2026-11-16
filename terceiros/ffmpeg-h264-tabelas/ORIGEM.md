@@ -19,3 +19,7 @@
   pelo autor com a tabela 9-44 da norma).
 - **Teste:** `tests/h82_video.py` (só roda a decodificação quando a máquina
   dos testes tem ffmpeg para gerar o MP4 de teste).
+- **Perfil High (D048):** o código do High em `userland/video/h264.c` usa
+  daqui só os valores iniciais dos contextos 399 a 435 do CABAC, que já
+  estavam em `cabac_tab.h`; as tabelas novas (da norma) ficam em
+  `userland/video/h264_alto_tab.h`. Teste: `tests/h88_video_alto.py`.

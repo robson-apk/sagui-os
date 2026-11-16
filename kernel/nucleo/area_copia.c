@@ -1,5 +1,5 @@
 /* area_copia.c - a área de cópia do sistema: copiar num programa e colar
- * em outro (pedido do Eli: copiar no Terminal e colar no Editor).
+ * em outro (por exemplo, copiar no Terminal e colar no Editor).
  *
  * É só um texto guardado pelo kernel, de até 64 KB. Copiar troca o texto
  * inteiro; colar devolve uma cópia. Os programas usam pela libsagui
