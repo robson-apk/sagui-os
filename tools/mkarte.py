@@ -21,6 +21,7 @@ para baixo e um contorno claro só onde ajuda a ler; depois, uma linha em
 ICONES. O C gerado tem arte_px_<nome> (64) e arte_px_<nome>_40.
 """
 import math
+import os
 import sys
 
 GRADE = 64     # os desenhos são feitos nesta grade
@@ -529,6 +530,32 @@ INTERFACE = [("relogio", ui_relogio), ("aparencia", ui_aparencia), ("som", ui_so
              ("anterior", ui_anterior), ("proxima", ui_proxima), ("teste", ui_teste)]
 
 
+def da_imagem(nome):
+    """Ícone desenhado a partir da folha (tools/icones_imagem.py, gerado pelo
+    png_icones.py): copia os pixels do tamanho T para a tela."""
+    import base64
+    import zlib
+    from icones_imagem import ICONES as IMG
+
+    def desenhar(t):
+        d = zlib.decompress(base64.b64decode(IMG[nome][T]))
+        for y in range(T):
+            for x in range(T):
+                r, g, b, a = d[(y * T + x) * 4:(y * T + x) * 4 + 4]
+                t.p[y][x] = (r, g, b, a / 255)
+    return desenhar
+
+
+def com_imagens(lista):
+    """Troca os desenhos pelos da folha de ícones, quando ela tem o ícone."""
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from icones_imagem import ICONES as IMG
+    except ImportError:
+        return lista
+    return [(n, da_imagem(n) if n in IMG else d) for n, d in lista]
+
+
 def escrever(f, nome, desenhar):
     t = Tela()
     desenhar(t)
@@ -545,7 +572,7 @@ def main():
         T = 20
         with open(sys.argv[2], "w", encoding="utf-8") as f:
             f.write("/* Gerado por tools/mkarte.py --programas. Não edite. */\n#include <stdint.h>\n\n")
-            for nome, desenhar in ICONES + INTERFACE:
+            for nome, desenhar in com_imagens(ICONES) + INTERFACE:
                 escrever(f, "icone_" + nome, desenhar)
         return
     if len(sys.argv) != 2:
@@ -554,7 +581,7 @@ def main():
         f.write("/* Gerado por tools/mkarte.py. Não edite. */\n#include \"arte.h\"\n\n")
         for tam, sufixo in TAMANHOS:
             T = tam
-            for nome, desenhar in ICONES:
+            for nome, desenhar in com_imagens(ICONES):
                 escrever(f, f"arte_px_{nome}{sufixo}", desenhar)
 
 

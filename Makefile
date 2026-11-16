@@ -149,7 +149,7 @@ $(B)/gerado/fonte8x16.o: $(B)/gerado/fonte8x16.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # Os ícones (H81, do Robson) são descritos em tools/mkarte.py e viram C no build.
-$(B)/gerado/arte_icones.c: tools/mkarte.py
+$(B)/gerado/arte_icones.c: tools/mkarte.py tools/icones_imagem.py
 	@mkdir -p $(dir $@)
 	$(PY) tools/mkarte.py $@
 
@@ -157,7 +157,7 @@ $(B)/gerado/arte_icones.o: $(B)/gerado/arte_icones.c kernel/inc/arte.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # H88: os mesmos ícones, em 20x20, para os programas (userland/inc/icones.h).
-$(B)/gerado/icones_programas.c: tools/mkarte.py
+$(B)/gerado/icones_programas.c: tools/mkarte.py tools/icones_imagem.py
 	@mkdir -p $(dir $@)
 	$(PY) tools/mkarte.py --programas $@
 
