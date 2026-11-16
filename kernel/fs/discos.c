@@ -292,6 +292,7 @@ int32_t sis_listar_discos(uint32_t indice, uint32_t pinfo, uint32_t c, uint32_t 
         inf->setores = d->setores;
         inf->montado = d->montado;
         inf->suportado = d->fat32;
+        inf->interno = d->interno;
         return 1;
     }
     return 0;

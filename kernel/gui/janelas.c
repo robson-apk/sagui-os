@@ -1718,7 +1718,7 @@ static void tarefa_gerenciador(void *arg)
             gui_aviso(texto);
         disco_t *pd = NULL;
         for (int k = 0; k < MAX_DISCOS && !pd; k++) { disco_t *d = disco_indice(k); if (d && d->presente && !d->de_boot && (!d->interno || d->montado)) pd = d; }   /* H97: HD sem montar não é pendrive */
-        if (area_pendrive(pd != NULL, pd ? (pd->rotulo[0] ? pd->rotulo : "Pendrive") : NULL))
+        if (area_pendrive(pd != NULL, pd ? (pd->interno ? "Disco" : pd->rotulo[0] ? pd->rotulo : "Pendrive") : NULL))
             gui_redesenhar(0, BARRA_SUPERIOR, 140, (int)video_altura() - BARRA_SUPERIOR);
         if (aviso_ate && (int32_t)(relogio_tiques() - aviso_ate) >= 0) {
             aviso_ate = 0;

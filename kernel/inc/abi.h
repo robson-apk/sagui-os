@@ -218,6 +218,7 @@ typedef struct {
     unsigned int setores;          /* de 512 bytes */
     unsigned int montado;
     unsigned int suportado;
+    unsigned int interno;          /* H97: disco rígido (hd0...), não pendrive */
 } info_disco_t;
 
 /* SIS_DISCO_SETORES (H97): setores de 512 bytes, até 128 por chamada. Não
