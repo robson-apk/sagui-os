@@ -66,6 +66,8 @@ int  atualizar_janela(int id, const retangulo_t *r) { return chamar(SIS_ATUALIZA
 int  proximo_evento(int id, evento_t *e, bool esperar) { return chamar(SIS_PROXIMO_EVENTO, (unsigned)id, (unsigned)e, esperar); }
 int  titulo_janela(int id, const char *t) { return chamar(SIS_TITULO_JANELA, (unsigned)id, (unsigned)t, 0); }
 int  ler_tela(uint32_t *px, unsigned bytes) { return chamar(SIS_LER_TELA, (unsigned)px, bytes, 0); }
+int  disco_setores(pedido_setores_t *p) { return chamar(SIS_DISCO_SETORES, (unsigned)p, 0, 0); }
+int  disco_reler(const char *nome) { return chamar(SIS_DISCO_RELER, (unsigned)nome, 0, 0); }
 int  area_copia_gravar(const char *t, unsigned n) { return chamar(SIS_AREA_COPIA, 0, (unsigned)t, n); }
 int  area_copia_ler(char *buf, unsigned max) { return chamar(SIS_AREA_COPIA, 1, (unsigned)buf, max); }
 int  menu_janela(int id, int x, int y, const char *itens) { return chamar(SIS_MENU_JANELA, (unsigned)id, (unsigned)(x | (y << 16)), (unsigned)itens); }

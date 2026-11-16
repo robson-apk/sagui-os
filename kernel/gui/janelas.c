@@ -377,6 +377,7 @@ static const programa_menu_t catalogo[] = {
     { "Sagui Code", "/bin/saguicode-janela", NULL, CAT_DESENVOLVIMENTO, arte_px_saguicode_40, "ia agente programar codigo" },
     { "Sagui Code (terminal)", "/bin/terminal", "/bin/saguicode", CAT_DESENVOLVIMENTO, arte_px_codigo_40, "ia agente programar codigo terminal" },
     { "Componentes", "/bin/componentes", NULL, CAT_DESENVOLVIMENTO, arte_px_componentes_40, "demonstracao botoes interface libsagui" },
+    { "Instalar o SaguiOS", "/bin/instalar", NULL, CAT_SISTEMA, arte_px_instalado_40, "instalar disco hd gravar instalacao particao" },   /* H97 */
 };
 #define QTD_CATALOGO (int)(sizeof catalogo / sizeof catalogo[0])
 #define MENU_X 4
@@ -1716,7 +1717,7 @@ static void tarefa_gerenciador(void *arg)
         while (disco_proximo_aviso(&tipo, texto, sizeof texto))
             gui_aviso(texto);
         disco_t *pd = NULL;
-        for (int k = 0; k < MAX_DISCOS && !pd; k++) { disco_t *d = disco_indice(k); if (d && d->presente && !d->de_boot) pd = d; }
+        for (int k = 0; k < MAX_DISCOS && !pd; k++) { disco_t *d = disco_indice(k); if (d && d->presente && !d->de_boot && (!d->interno || d->montado)) pd = d; }   /* H97: HD sem montar não é pendrive */
         if (area_pendrive(pd != NULL, pd ? (pd->rotulo[0] ? pd->rotulo : "Pendrive") : NULL))
             gui_redesenhar(0, BARRA_SUPERIOR, 140, (int)video_altura() - BARRA_SUPERIOR);
         if (aviso_ate && (int32_t)(relogio_tiques() - aviso_ate) >= 0) {

@@ -64,6 +64,8 @@ int32_t sis_aleatorio(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 int32_t sis_janela_opcoes(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 int32_t sis_menu_janela(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 int32_t sis_ler_tela(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+int32_t sis_disco_setores(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+int32_t sis_disco_reler(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 int32_t sis_area_copia(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
 
 #endif

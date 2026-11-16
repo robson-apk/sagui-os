@@ -58,6 +58,7 @@ static const chamada_t tabela[SIS_MAX] = {
     [SIS_JANELA_OPCOES] = sis_janela_opcoes,
     [SIS_MENU_JANELA]   = sis_menu_janela,
     [SIS_LER_TELA]      = sis_ler_tela,
+    [SIS_DISCO_SETORES] = sis_disco_setores,  [SIS_DISCO_RELER] = sis_disco_reler,
     [SIS_AREA_COPIA]    = sis_area_copia,
 };
 

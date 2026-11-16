@@ -168,16 +168,38 @@ static bool montar_se_for_do_saguios(disco_t *d)
     return true;
 }
 
+static disco_t *registrar(bool interno, const char *fabricante, const char *produto, uint32_t setores, uint32_t tam_setor, void *dono,
+                          int (*ler)(disco_t *, uint32_t, uint32_t, void *),
+                          int (*escrever)(disco_t *, uint32_t, uint32_t, const void *));
+
 disco_t *disco_registrar(const char *fabricante, const char *produto, uint32_t setores, uint32_t tam_setor, void *dono,
                          int (*ler)(disco_t *, uint32_t, uint32_t, void *),
                          int (*escrever)(disco_t *, uint32_t, uint32_t, const void *))
+{
+    return registrar(false, fabricante, produto, setores, tam_setor, dono, ler, escrever);
+}
+
+disco_t *disco_registrar_interno(const char *modelo, uint32_t setores, void *dono,
+                                 int (*ler)(disco_t *, uint32_t, uint32_t, void *),
+                                 int (*escrever)(disco_t *, uint32_t, uint32_t, const void *))
+{
+    return registrar(true, "ATA", modelo, setores, 512, dono, ler, escrever);
+}
+
+static int contador_hd;
+
+static disco_t *registrar(bool interno, const char *fabricante, const char *produto, uint32_t setores, uint32_t tam_setor, void *dono,
+                          int (*ler)(disco_t *, uint32_t, uint32_t, void *),
+                          int (*escrever)(disco_t *, uint32_t, uint32_t, const void *))
 {
     for (int i = 0; i < MAX_DISCOS; i++) {
         disco_t *d = &discos[i];
         if (d->usado) continue;
         memset(d, 0, sizeof *d);
         d->usado = d->presente = true;
-        snformatar(d->nome, sizeof d->nome, "usb%d", contador++);
+        d->interno = interno;
+        if (interno) snformatar(d->nome, sizeof d->nome, "hd%d", contador_hd++);
+        else snformatar(d->nome, sizeof d->nome, "usb%d", contador++);
         txt_copia_n(d->fabricante, fabricante, sizeof d->fabricante);
         txt_copia_n(d->produto, produto, sizeof d->produto);
         d->setores = setores;
@@ -190,8 +212,10 @@ disco_t *disco_registrar(const char *fabricante, const char *produto, uint32_t s
         tamanho_legivel(setores, tam, sizeof tam);
         klog("[DISCO] %s: %s %s, %s, %s, rotulo \"%s\"\n", d->nome, fabricante, produto, tam, d->formato, d->rotulo);
         if (d->de_boot) ;   /* o pendrive de onde o sistema acabou de ligar: nada a avisar */
-        else if (d->fat32 && montar_se_for_do_saguios(d))
-            avisar(AVISO_MONTADO, "Pendrive com as suas configurações montado em /usb (%s)", d->rotulo[0] ? d->rotulo : d->produto);
+        else if (d->fat32 && montar_se_for_do_saguios(d)) {
+            if (!d->interno)      /* H97: o disco instalado monta calado, como um disco de sistema */
+                avisar(AVISO_MONTADO, "Pendrive com as suas configurações montado em /usb (%s)", d->rotulo[0] ? d->rotulo : d->produto);
+        } else if (d->interno) ;  /* outros discos internos: sem aviso de "pendrive conectado" */
         else if (d->fat32) avisar(AVISO_CONECTADO, "Pendrive conectado: %s (%s)", d->rotulo[0] ? d->rotulo : d->produto, tam);
         else avisar(AVISO_CONECTADO, "Pendrive conectado: %s (%s), %s", d->produto, tam, d->formato);
         return d;
@@ -270,6 +294,51 @@ int32_t sis_listar_discos(uint32_t indice, uint32_t pinfo, uint32_t c, uint32_t 
         inf->suportado = d->fat32;
         return 1;
     }
+    return 0;
+}
+
+/* H97: setores crus, para o instalador (tabela de partições, sistema e
+ * formatação da FAT32). Ler e gravar de 1 a 128 setores; gravar num disco
+ * montado é recusado, porque a FAT dele está na memória. */
+int32_t sis_disco_setores(uint32_t pped, uint32_t b, uint32_t c, uint32_t dd, uint32_t e)
+{
+    (void)b; (void)c; (void)dd; (void)e;
+    pedido_setores_t *p = (pedido_setores_t *)pped;
+    if (!usuario_ok(p, sizeof *p, false)) return ERRO_ENDERECO;
+    char nome[8];
+    txt_copia_n(nome, p->nome, sizeof nome);
+    uint32_t lba = p->lba, n = p->n, esc = p->escrever;
+    void *buf = p->buf;
+    disco_t *d = disco_por_nome(nome);
+    if (!d || !d->presente) return ERRO_NAO_EXISTE;
+    if (n == 0 || n > 128 || d->tam_setor != 512 || lba + n < lba || lba + n > d->setores) return ERRO_INVALIDO;
+    if (!usuario_ok(buf, n * 512, !esc)) return ERRO_ENDERECO;
+    if (esc && d->montado) return ERRO_OCUPADO;
+    /* O buffer do programa pode não ser contíguo na memória física: passa
+     * por um do kernel. */
+    uint8_t *k = kmalloc(n * 512);
+    if (!k) return ERRO_SEM_MEMORIA;
+    int r;
+    if (esc) { memcpy(k, buf, n * 512); r = d->escrever(d, lba, n, k); }
+    else { r = d->ler(d, lba, n, k); if (r == 0) memcpy(buf, k, n * 512); }
+    kfree(k);
+    return r < 0 ? ERRO_ES : 0;
+}
+
+int32_t sis_disco_reler(uint32_t pnome, uint32_t b, uint32_t c, uint32_t dd, uint32_t e)
+{
+    (void)b; (void)c; (void)dd; (void)e;
+    char nome[8];
+    if (!usuario_ok((void *)pnome, 1, false)) return ERRO_ENDERECO;
+    txt_copia_n(nome, (const char *)pnome, sizeof nome);
+    disco_t *d = disco_por_nome(nome);
+    if (!d || !d->presente) return ERRO_NAO_EXISTE;
+    if (d->montado) return ERRO_OCUPADO;
+    d->fat32 = d->de_boot = false;
+    d->part_inicio = 0;
+    d->rotulo[0] = 0;
+    reconhecer(d);
+    klog("[DISCO] %s relido: %s, rotulo \"%s\"\n", d->nome, d->formato, d->rotulo);
     return 0;
 }
 

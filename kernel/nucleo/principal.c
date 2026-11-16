@@ -24,6 +24,7 @@
 #include "i8042.h"
 #include "gui.h"
 #include "usb.h"
+#include "ata.h"
 #include "video.h"
 
 #define SAGUI_VERSAO "2.1"
@@ -247,6 +248,11 @@ void inicio_kernel(uint32_t magico, info_boot_t *bi)
     }
     /* H29-H31: USB 2.0 (EHCI), hubs e pendrives de dados. */
     usb_iniciar();
+    /* H97: discos rígidos IDE/ATA (o instalador grava neles). */
+    {
+        int n = ata_iniciar();
+        if (n) { char linha[64]; snformatar(linha, sizeof linha, "Discos: %d disco(s) IDE/ATA", n); etapa(linha); }
+    }
     {
         char linha[96];
         int n = ehci_quantidade();

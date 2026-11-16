@@ -21,11 +21,16 @@ typedef struct disco {
     bool     fat32;
     bool     de_boot;             /* o próprio pendrive de boot do SaguiOS: sem aviso nem ícone */
     bool     montado;
+    bool     interno;             /* H97: disco rígido (hd0), não pendrive */
 } disco_t;
 
 disco_t *disco_registrar(const char *fabricante, const char *produto, uint32_t setores, uint32_t tam_setor, void *dono,
                          int (*ler)(disco_t *, uint32_t, uint32_t, void *),
                          int (*escrever)(disco_t *, uint32_t, uint32_t, const void *));
+/* H97: disco interno (ATA): nome hd0, hd1... */
+disco_t *disco_registrar_interno(const char *modelo, uint32_t setores, void *dono,
+                                 int (*ler)(disco_t *, uint32_t, uint32_t, void *),
+                                 int (*escrever)(disco_t *, uint32_t, uint32_t, const void *));
 void     disco_removido(disco_t *d);
 disco_t *disco_por_nome(const char *nome);
 disco_t *disco_indice(int i);

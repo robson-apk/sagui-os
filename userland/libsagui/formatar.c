@@ -158,6 +158,7 @@ const char *nome_erro(int e)
     case ERRO_OCUPADO: return "em uso";
     case ERRO_REDE: return "sem rede ou sem resposta";
     case ERRO_FIM: return "conexão terminada";
+    case ERRO_ES: return "erro de leitura ou gravação no disco";
     default: return "erro desconhecido";
     }
 }
