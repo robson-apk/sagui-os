@@ -447,11 +447,16 @@ static bool contem(const char *texto, const char *busca)
 
 static void menu_filtrar(void)
 {
+    /* H97: ligado pelo disco instalado (o instalador grava
+     * sistema.instalado = sim nele), o instalador sai do menu. */
+    const char *inst = config_obter("sistema.instalado");
+    bool ja_instalado = inst && txt_compara(inst, "sim") == 0;
     menu_qtd = 0;
     bool buscando = menu_busca[0] != 0;
     for (int i = 0; i < QTD_CATALOGO && menu_qtd < MENU_COLUNAS * MENU_LINHAS; i++) {
         const programa_menu_t *p = &catalogo[i];
         if (!buscando && menu_cat != CAT_TODOS && p->cat != menu_cat) continue;
+        if (ja_instalado && txt_compara(p->programa, "/bin/instalar") == 0) continue;
         if (buscando && !contem(p->nome, menu_busca) && !contem(p->palavras, menu_busca)) continue;
         menu_res[menu_qtd++] = i;
     }
@@ -703,7 +708,7 @@ static void menu_tecla(int t)
         if (n + 1 < (int)sizeof menu_busca) { menu_busca[n] = (char)t; menu_busca[n + 1] = 0; menu_sel = 0; }
     } else return;
     if (menu_busca[0] == 0) menu_sel = 0;
-    klog("[GUI] menu: busca \"%s\"\n", menu_busca);
+    klog("[GUI] menu: busca \"%s\" (%d resultados)\n", menu_busca, menu_qtd);
     redesenhar_corpo_menu();
 }
 
