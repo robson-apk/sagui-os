@@ -54,7 +54,10 @@ static void esperar_400ns(const ata_t *u)
 /* Espera BSY sair; com drq, espera também DRQ (ou erro). -1 em erro ou tempo esgotado. */
 static int esperar(const ata_t *u, bool drq)
 {
-    for (uint32_t volta = 0; volta < 4000000; volta++) {
+    /* Cada leitura do estado é uma saída para a porta (~0,1 a 1 us). 100
+     * milhões de voltas dão vários segundos: o disco do QEMU no Mac, lendo de
+     * um arquivo, já passou de 4 milhões (H97, estado d0 = ainda ocupado). */
+    for (uint32_t volta = 0; volta < 100000000; volta++) {
         uint8_t e = porta_le8(u->base + ATA_ESTADO);
         if (e & EST_BSY) continue;
         if (e & (EST_ERR | EST_DF)) return -1;
@@ -77,6 +80,7 @@ static void selecionar(const ata_t *u, uint32_t lba, uint32_t n, bool escrever)
         porta_escreve8(u->base + ATA_LBA1, (uint8_t)(lba >> 8));
         porta_escreve8(u->base + ATA_LBA2, (uint8_t)(lba >> 16));
         porta_escreve8(u->base + ATA_COMANDO, escrever ? 0x34 : 0x24);
+        esperar_400ns(u);   /* o estado só vale 400 ns depois do comando */
     } else {
         porta_escreve8(u->base + ATA_UNIDADE, (uint8_t)(0xE0 | (u->escravo << 4) | ((lba >> 24) & 0x0F)));
         esperar_400ns(u);
@@ -85,6 +89,7 @@ static void selecionar(const ata_t *u, uint32_t lba, uint32_t n, bool escrever)
         porta_escreve8(u->base + ATA_LBA1, (uint8_t)(lba >> 8));
         porta_escreve8(u->base + ATA_LBA2, (uint8_t)(lba >> 16));
         porta_escreve8(u->base + ATA_COMANDO, escrever ? 0x30 : 0x20);
+        esperar_400ns(u);
     }
 }
 
@@ -92,7 +97,43 @@ static void selecionar(const ata_t *u, uint32_t lba, uint32_t n, bool escrever)
  * pouco tempo com as interrupções desligadas). */
 #define POR_VEZ 128
 
+/* Reinicia o canal (SRST no registrador de controle) depois de um erro:
+ * o disco volta a um estado conhecido e o comando é tentado de novo. */
+static void reiniciar_canal(const ata_t *u)
+{
+    porta_escreve8(u->ctrl, 0x06);           /* SRST + nIEN */
+    for (int i = 0; i < 50; i++) esperar_400ns(u);
+    porta_escreve8(u->ctrl, 0x02);
+    for (int i = 0; i < 50; i++) esperar_400ns(u);
+    (void)esperar(u, false);
+}
+
+static int ler_uma_vez(disco_t *d, uint32_t lba, uint32_t n, void *buf);
+static int escrever_uma_vez(disco_t *d, uint32_t lba, uint32_t n, const void *buf);
+
+/* Até 3 tentativas: um erro passageiro (visto no QEMU 11) não vira "erro de
+ * leitura" do disco inteiro. */
 static int ler(disco_t *d, uint32_t lba, uint32_t n, void *buf)
+{
+    for (int t = 0; t < 3; t++) {
+        if (ler_uma_vez(d, lba, n, buf) == 0) return 0;
+        klog("[ATA] nova tentativa (leitura, lba %u)\n", lba);
+        reiniciar_canal(d->dono);
+    }
+    return -1;
+}
+
+static int escrever(disco_t *d, uint32_t lba, uint32_t n, const void *buf)
+{
+    for (int t = 0; t < 3; t++) {
+        if (escrever_uma_vez(d, lba, n, buf) == 0) return 0;
+        klog("[ATA] nova tentativa (gravação, lba %u)\n", lba);
+        reiniciar_canal(d->dono);
+    }
+    return -1;
+}
+
+static int ler_uma_vez(disco_t *d, uint32_t lba, uint32_t n, void *buf)
 {
     ata_t *u = d->dono;
     uint16_t *p = buf;
@@ -102,7 +143,7 @@ static int ler(disco_t *d, uint32_t lba, uint32_t n, void *buf)
         bool i = int_salva_desliga();
         selecionar(u, lba, k, false);
         for (uint32_t s = 0; s < k; s++) {
-            if (esperar(u, true) < 0) { int_restaura(i); klog("[ATA] erro lendo lba %u\n", lba + s); return -1; }
+            if (esperar(u, true) < 0) { int_restaura(i); klog("[ATA] erro lendo lba %u (estado %x, erro %x, base %x, escravo %d, lba48 %d)\n", lba + s, porta_le8(u->base + ATA_ESTADO), porta_le8(u->base + ATA_ERRO), u->base, u->escravo, u->lba48); return -1; }
             for (int w = 0; w < 256; w++) *p++ = porta_le16(u->base + ATA_DADOS);
             esperar_400ns(u);
         }
@@ -112,7 +153,7 @@ static int ler(disco_t *d, uint32_t lba, uint32_t n, void *buf)
     return 0;
 }
 
-static int escrever(disco_t *d, uint32_t lba, uint32_t n, const void *buf)
+static int escrever_uma_vez(disco_t *d, uint32_t lba, uint32_t n, const void *buf)
 {
     ata_t *u = d->dono;
     const uint16_t *p = buf;
@@ -130,6 +171,7 @@ static int escrever(disco_t *d, uint32_t lba, uint32_t n, const void *buf)
          * os dados estão no disco antes de dizer que gravou. */
         if (esperar(u, false) < 0) { int_restaura(i); return -1; }
         porta_escreve8(u->base + ATA_COMANDO, u->lba48 ? 0xEA : 0xE7);
+        esperar_400ns(u);
         int r = esperar(u, false);
         int_restaura(i);
         if (r < 0) return -1;
